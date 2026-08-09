@@ -1,0 +1,135 @@
+:root{
+  --accent:#4B9CD3;
+  --accent-2:#FF7F50;
+  --danger:#d9534f;
+  --page-accent-color: var(--accent);
+  color-scheme: light;
+  --app-bg:#f8f9fa;
+  --app-text:#212529;
+  --app-card-bg:#fff;
+  --app-border:#dee2e6;
+  --app-preview-bg:#fff;
+}
+
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --app-bg:#121212;
+  --app-text:#f1f3f5;
+  --app-card-bg:#1f1f1f;
+  --app-border:#495057;
+  --app-preview-bg:#181818;
+}
+
+.header-bar, .header-bar-green, .header-bar-red {
+  /* Header reads the per-page --page-accent-color; pages set this on <body> or the nav to match their buttons */
+  background-color: var(--page-accent-color);
+  background-image: linear-gradient(120deg, color-mix(in srgb, var(--page-accent-color) 92%, white), var(--page-accent-color));
+  box-shadow: 0 8px 24px rgba(15, 23, 42, .12);
+}
+
+body{
+  background-color:var(--app-bg) !important;
+  color:var(--app-text);
+  font-family:"Chelsea Market", Segoe UI, Roboto, Arial, sans-serif
+}
+
+.card{
+  background-color:var(--app-card-bg);
+  border-color:var(--app-border);
+}
+
+.border, hr{border-color:var(--app-border) !important}
+
+.bg-light{background-color:var(--app-bg) !important}
+.bg-white{background-color:var(--app-preview-bg) !important}
+
+.form-control, .form-select{
+  background-color:var(--app-card-bg);
+  border-color:var(--app-border);
+  color:var(--app-text);
+}
+
+.form-control:focus, .form-select:focus{
+  background-color:var(--app-card-bg);
+  color:var(--app-text);
+}
+
+.form-control::file-selector-button{
+  background-color:var(--app-border);
+  color:var(--app-text);
+}
+
+.header-action{
+  width:34px;
+  height:34px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border:1px solid rgba(255,255,255,.35);
+  border-radius:10px;
+  color:#fff;
+}
+
+.header-action:hover, .header-action:focus-visible{
+  color:#fff;
+  background-color:rgba(255,255,255,.16);
+  border-color:rgba(255,255,255,.6);
+}
+
+.theme-icon{
+  width:15px;
+  height:15px;
+  display:block;
+  border:2px solid currentColor;
+  border-radius:50%;
+  position:relative;
+}
+
+.theme-icon::after{
+  content:"";
+  position:absolute;
+  width:5px;
+  height:5px;
+  right:-4px;
+  top:-4px;
+  border-radius:50%;
+  background:var(--page-accent-color);
+  border:1px solid currentColor;
+}
+
+.dropdown-menu{
+  background-color:var(--app-card-bg);
+  border-color:var(--app-border);
+  box-shadow:0 12px 28px rgba(15,23,42,.16);
+}
+
+.dropdown-item{color:var(--app-text)}
+.dropdown-item:hover, .dropdown-item:focus, .dropdown-item.active{
+  color:var(--app-text);
+  background-color:color-mix(in srgb, var(--page-accent-color) 18%, var(--app-card-bg));
+}
+
+.download-progress{
+  padding:1rem;
+  border:1px solid var(--app-border);
+  border-radius:12px;
+  background:color-mix(in srgb, var(--app-card-bg) 92%, var(--page-accent-color));
+}
+
+.download-progress .progress{
+  height:10px;
+  background-color:var(--app-border);
+}
+
+.download-progress .progress-bar{
+  transition:width .35s ease;
+}
+
+.card{border-radius:10px}
+
+#previewBox{height:320px; display:flex; align-items:center; justify-content:center}
+
+.btn-primary{background:var(--accent); border:0}
+.btn-primary:hover{background:#368fc1}
+
+.btn-outline-secondary{border-radius:6px}

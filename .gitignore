@@ -1,0 +1,13 @@
+# Local credentials and secrets
+cookies/
+.env
+.env.*
+
+# Python cache and tooling output
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Generated converter output and local input files
+OUT/
+IN/

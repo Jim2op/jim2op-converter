@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Jim2op-Converter</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/theme.js"></script>
+  </head>
+  <body class="bg-light" style="--page-accent-color: var(--accent);">
+    <nav class="navbar navbar-expand-lg navbar-dark header-bar">
+      <div class="container-fluid">
+        <a class="navbar-brand" href="/">Main Menu</a>
+        <div class="d-flex align-items-center gap-2 ms-auto">
+          <div class="dropdown">
+            <button class="btn btn-sm btn-icon header-action" id="themeMenuButton" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Choose color theme" title="Choose color theme">
+              <span class="theme-icon" aria-hidden="true"></span>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end" id="themeMenu" aria-labelledby="themeMenuButton">
+              <li><button class="dropdown-item" type="button" data-theme-choice="light">Light</button></li>
+              <li><button class="dropdown-item" type="button" data-theme-choice="dark">Dark</button></li>
+              <li><button class="dropdown-item" type="button" data-theme-choice="system">System</button></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <main class="container py-5">
+      <div class="row justify-content-center">
+        <div class="col-md-8">
+          <div class="card shadow-sm text-center p-4">
+            <h2 class="mb-3">What would you like to convert?</h2>
+            <div class="row g-3 justify-content-center">
+              <div class="col-12 col-md-auto">
+                <a class="btn btn-lg btn-primary" href="/image">Images</a>
+              </div>
+              <div class="col-12 col-md-auto">
+                <a class="btn btn-lg btn-success" href="/video">Video/Audio</a>
+              </div>
+              <div class="col-12 col-md-auto">
+                <a class="btn btn-lg btn-danger" href="/youtube">YouTube</a>
+              </div>
+            </div>
+            <p class="text-muted mt-3">Image: convert PNG/JPEG/WEBP/AVIF/etc. — Video/Audio: convert local files to GIF/audio. YouTube: download and convert a YouTube video directly.</p>
+          </div>
+        </div>
+      </div>
+    </main>
+  </body>
+</html>

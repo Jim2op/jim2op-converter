@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Image Converter</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/theme.js"></script>
+  </head>
+  <body class="bg-light" style="--page-accent-color: var(--accent);">
+    <nav class="navbar navbar-expand-lg navbar-dark header-bar">
+      <div class="container-fluid">
+        <a class="navbar-brand" href="/">Image Converter</a>
+        <div class="d-flex align-items-center gap-2 ms-auto">
+          <div class="dropdown">
+            <button class="btn btn-sm btn-icon header-action" id="themeMenuButton" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Choose color theme" title="Choose color theme">
+              <span class="theme-icon" aria-hidden="true"></span>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end" id="themeMenu" aria-labelledby="themeMenuButton">
+              <li><button class="dropdown-item" type="button" data-theme-choice="light">Light</button></li>
+              <li><button class="dropdown-item" type="button" data-theme-choice="dark">Dark</button></li>
+              <li><button class="dropdown-item" type="button" data-theme-choice="system">System</button></li>
+            </ul>
+          </div>
+          <a class="btn btn-sm btn-outline-light" href="/video">Video Converter</a>
+          <a class="btn btn-sm btn-outline-light ms-2" href="/">Home</a>
+        </div>
+      </div>
+    </nav>
+
+    <main class="container py-4">
+      <div class="row">
+        <div class="col-lg-7">
+          <div class="card shadow-sm">
+            <div class="card-body">
+              {% with messages = get_flashed_messages() %}
+                {% if messages %}
+                  <div class="alert alert-warning" role="alert">
+                    {{ messages[0] }}
+                  </div>
+                {% endif %}
+              {% endwith %}
+
+              <form method="POST" action="/convert" enctype="multipart/form-data">
+                <input type="hidden" name="source" value="image" />
+                <div class="mb-3">
+                  <label class="form-label">Choose images (multiple allowed)</label>
+                  <input class="form-control" type="file" name="image" id="imageInput" accept="image/*" multiple required>
+                </div>
+
+                <div class="row g-2">
+                  <div class="col-md-4">
+                    <label class="form-label">Format</label>
+                    <select class="form-select" name="format" id="formatSelect">
+                      {% for f in formats %}
+                        <option value="{{ f }}">{{ f }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                </div>
+
+                <div class="form-check form-switch mt-3">
+                  <input class="form-check-input" type="checkbox" id="preserveAnim" name="preserve_anim" checked>
+                  <label class="form-check-label" for="preserveAnim">Preserve animation (if present)</label>
+                </div>
+
+                <div class="mt-3 d-flex gap-2">
+                  <button type="submit" class="btn btn-primary">Convert & Download</button>
+                  <button type="button" class="btn btn-outline-secondary" id="resetBtn">Reset</button>
+                </div>
+              </form>
+
+              <hr class="my-3">
+              <p class="text-muted small mb-0">Supported formats: {{ formats|join(', ') }}. Auto mode chooses the best color mode based on format and source image.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-lg-5">
+          <div class="card shadow-sm">
+            <div class="card-body text-center">
+              <h6 class="card-title">Preview (first selected)</h6>
+              <div id="previewBox" class="border rounded p-2 bg-white">
+                <img id="previewImage" src="" alt="Preview" style="max-width:100%; max-height:320px; display:none;" />
+                <video id="previewVideo" controls style="max-width:100%; max-height:320px; display:none;"></video>
+                <div id="previewPlaceholder" class="text-muted">No image selected</div>
+              </div>
+              <div id="selectedCount" class="mt-2 small text-muted"></div>
+            </div>
+          </div>
+
+          <div class="mt-3 text-center small text-muted">Tip: You can upload multiple images at once. Animated images (GIF/WebP) will be preserved if possible.</div>
+        </div>
+      </div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      const imageInput = document.getElementById('imageInput');
+      const previewImage = document.getElementById('previewImage');
+      const previewVideo = document.getElementById('previewVideo');
+      const previewPlaceholder = document.getElementById('previewPlaceholder');
+      const formatSelect = document.getElementById('formatSelect');
+      const resetBtn = document.getElementById('resetBtn');
+      const selectedCount = document.getElementById('selectedCount');
+
+
+      imageInput.addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        const files = e.target.files;
+        if (!file) {
+          previewImage.style.display = 'none';
+          previewVideo.style.display = 'none';
+          previewPlaceholder.style.display = 'block';
+          selectedCount.textContent = '';
+          return;
+        }
+
+        selectedCount.textContent = files.length + ' file(s) selected';
+
+        const reader = new FileReader();
+        if (file.type.startsWith('video/')) {
+          reader.onload = function(ev) {
+            previewVideo.src = ev.target.result;
+            previewVideo.style.display = 'block';
+            previewVideo.play();
+            previewImage.style.display = 'none';
+            previewPlaceholder.style.display = 'none';
+          }
+          reader.readAsDataURL(file);
+        } else {
+          reader.onload = function(ev) {
+            previewImage.src = ev.target.result;
+            previewImage.style.display = 'block';
+            previewVideo.style.display = 'none';
+            previewPlaceholder.style.display = 'none';
+          }
+          reader.readAsDataURL(file);
+        }
+      });
+
+      resetBtn.addEventListener('click', () => {
+        document.querySelector('form').reset();
+        previewImage.src = '';
+        previewImage.style.display = 'none';
+        previewVideo.src = '';
+        previewVideo.style.display = 'none';
+        previewPlaceholder.style.display = 'block';
+        selectedCount.textContent = '';
+      });
+
+    </script>
+  </body>
+</html>
