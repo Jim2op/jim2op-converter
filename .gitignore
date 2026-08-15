@@ -9,3 +9,7 @@ IN/
 # Node.js dependencies and local runtime files
 node_modules/
 *.log
+
+# Python worker bytecode
+__pycache__/
+*.py[cod]
