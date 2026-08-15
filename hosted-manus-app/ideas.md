@@ -1,61 +1,65 @@
-# Converter — Design Direction
+# Converter Web App Design Direction
 
-## Three possible approaches
+## Three Approaches
 
-### 1. Signal Ledger
-**Very Brief Intro:** A precision-tool aesthetic that treats each conversion as a short, trustworthy transaction. Cool blue interface planes, strong editorial typography, and calm status cues make the app feel dependable rather than decorative.
-
+### Theme Name: Editorial Utility
+Very light editorial interface with warm paper tones, ink-black typography, and restrained accent colors for each conversion tool. It should feel calm, precise, and dependable rather than like a generic dashboard.
 **Probability:** 0.07
 
-### 2. Studio Workbench
-**Very Brief Intro:** A brighter creative-tool workspace with desk-like surfaces, illustrated file artifacts, and a friendly guided flow. It would make an ordinary conversion task feel approachable and tactile.
+### Theme Name: Terminal Workshop
+A dark, technical workspace inspired by command-line tools, with dense information hierarchy, monospace details, and bright status colors. It would emphasize power-user utility and progress feedback.
+**Probability:** 0.03
 
-**Probability:** 0.04
-
-### 3. Tape & Terminal
-**Very Brief Intro:** A playful archival interface inspired by media labels and cassette spines. It uses coral stickers, oversized labels, and utilitarian metadata to give file conversion a collectible character.
-
+### Theme Name: Soft Spectrum
+A friendly, airy interface with pastel surfaces, rounded cards, and playful gradients that make file conversion feel approachable for casual users. It would prioritize warmth and onboarding clarity.
 **Probability:** 0.09
 
-## Chosen approach: Signal Ledger
+## Chosen Approach: Editorial Utility
 
-**Design Movement:** Swiss editorial systems combined with contemporary productivity software.
+### Design Movement
+Contemporary editorial product design: Swiss-inspired structure combined with tactile paper surfaces and modern utility software patterns.
 
-**Core Principles:**
+### Core Principles
+1. Make every conversion flow obvious in one glance, with the file state, output choice, and primary action visually separated.
+2. Use typography and whitespace as the main hierarchy system; decoration stays quiet so controls feel trustworthy.
+3. Give each tool a distinct accent color while keeping the shell neutral, allowing users to orient by color without losing consistency.
+4. Treat progress, errors, and completed downloads as editorial status callouts: concise, high contrast, and never ambiguous.
 
-1. Make the conversion path visually obvious through a strong reading order: source, target, output.
-2. Use restrained surfaces and high-contrast type to convey technical reliability without looking corporate.
-3. Preserve the existing blue, coral, green, and red accents as semantic signals, not decoration.
-4. Offer immediate, honest feedback: private browser processing, live file metadata, and visible completion states.
+### Color Philosophy
+The shell uses warm near-white and ink colors to evoke a clean work surface rather than a sterile SaaS panel. Tool accents are saturated but selective—blue for image work, violet for video, and green for YouTube—so color encodes intent and state. The signature brand color is **Signal Cobalt `#3157d5`**, used for primary actions and active navigation.
 
-**Color Philosophy:** Ink navy anchors the interface as a focused workspace. Electric blue is the ownable operational color, while green, coral, and red distinguish successful image transforms, guidance, and capability boundaries. Soft cloud-white panels provide a clear resting surface around files and settings.
+### Layout Paradigm
+Use a broad, asymmetric composition: a compact masthead and generous hero introduce the tool, followed by a two-column workspace where the primary conversion surface leads and a contextual tips/status panel supports it. Home uses three tool cards as a horizontal index rather than a centered marketing grid. On smaller screens the supporting column stacks after the main action area.
 
-**Layout Paradigm:** A left-aligned editorial masthead leads into an asymmetrical workbench. The active conversion space occupies a broad main rail while a narrower right rail explains privacy and output behavior. On mobile, the rails stack in the same reading order.
+### Signature Elements
+1. Small uppercase section labels with a rule mark, echoing magazine captions.
+2. Tinted tool accents applied to icon tiles, status dots, and active links.
+3. Fine dotted texture and quiet diagonal linework behind the hero to add material depth without imagery competing with the task.
 
-**Signature Elements:**
+### Interaction Philosophy
+Interactions should be direct and reassuring. Drag-and-drop, file selection, format selection, and submit buttons should all have visible focus and hover feedback. The interface should acknowledge every action through a compact status message; invalid input should explain what to fix, not merely say that it failed.
 
-1. A segmented conversion rail that shows the path from source format to selected output.
-2. A compact “private by design” proof strip that makes browser-only processing visible.
-3. Color-coded file-family markers: blue for images, green for browser media, coral for unsupported hosted features.
+### Animation
+Use short ease-out transitions for card lift, button press, and file-row updates. Reveal the workspace with a subtle upward opacity transition, staggered by 50ms between primary and supporting panels. Progress updates should animate only opacity and transform; no layout-jittering width animations. Honor `prefers-reduced-motion` and keep keyboard-triggered actions immediate.
 
-**Interaction Philosophy:** Interactions are direct and local. Selecting a file immediately populates metadata and an honest in-browser preview. Format changes visibly update the output destination, and unavailable server-dependent actions explain the boundary instead of pretending to work.
+### Typography System
+Use **Manrope** for headlines and prominent labels, with **DM Sans** for body copy and controls. Headlines use tight tracking and heavy weights; body text stays at 0.95–1.05rem with generous line height. Uppercase eyebrow labels use 0.72–0.8rem, 0.1em tracking, and 800 weight.
 
-**Animation:** Short 160–220ms ease-out transitions support hover, progress, and panel reveals. Conversion success uses a small check-mark rise and a filled status rail. No decorative looping motion; reduced-motion users see the same status changes without movement.
+### Brand Essence
+A focused browser toolkit for turning everyday files into usable formats without clutter, accounts, or guesswork. **Precise, calm, capable.**
 
-**Typography System:** Space Grotesk supplies assertive display and navigation type. IBM Plex Mono is reserved for format labels, byte counts, and processing states. Body copy uses a measured sans-serif hierarchy with generous line-height; headlines never rely on Inter.
+### Brand Voice
+Headlines are clear and lightly confident; CTAs describe the action in plain language; microcopy names the next step and the result. Avoid hype, vague promises, and filler.
 
-**Brand Essence:** Converter is a private, browser-first file workbench for people who need a clean route from one format to another. **Precise, candid, composed.**
+Example lines:
+- “Choose a tool. Leave with a file that works.”
+- “Drop it here, select the format, and convert.”
 
-**Brand Voice:** Headlines are factual and decisive; CTAs are action-led; microcopy states constraints plainly. Example lines: “Choose a file. Keep it on this device.” and “Video extraction needs a local converter.” Generic greetings and vague productivity slogans are not used.
+### Wordmark & Logo
+Use a compact monogram mark built from two offset cobalt brackets that form a subtle “C” and imply input/output transformation. The wordmark is set in Manrope ExtraBold with a custom widened “o” counter treatment; the mark must remain legible at favicon size without text.
 
-**Wordmark & Logo:** A modular mark made from two offset transfer arrows enclosed in a rounded square, suggesting a controlled handoff between formats. The wordmark pairs a condensed “C” rhythm with the mono-format labels, rather than a default font treatment.
-
-**Signature Brand Color:** **Transfer Blue — #2F89F5.**
+### Signature Brand Color
+**Signal Cobalt — `#3157d5`**
 
 ## Style Decisions
-
-- The source → target → output rail is the primary visual system across hero, workbench, status, and capability areas.
-- Generated imagery is framed as labeled format artifacts and deliberately desaturated so it supports the tool rather than becoming decorative gloss.
-- The offset transfer-arrow mark is amplified in the header and footer and echoed through mono ledger codes, rails, and semantic success/boundary states.
-- Generated images are treated as desaturated, labeled file artifacts; the source → target → output rail is structural in every major section.
-- Transfer Blue remains reserved for the active conversion path, while green and coral only indicate success/privacy and local-only boundaries.
+The existing converter’s feature model remains the source of truth: image conversion, video-to-GIF/audio extraction, and YouTube download with quality selection, progress, cookie status, error handling, and download actions must remain discoverable and functional. The UI will move from the legacy static DOM into React components without changing the backend API contracts.
