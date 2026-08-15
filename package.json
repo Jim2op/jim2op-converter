@@ -10,7 +10,6 @@
     "test": "node --test"
   },
   "dependencies": {
-    "@distube/ytdl-core": "^4.16.12",
     "express": "^5.2.1",
     "multer": "^2.2.0",
     "sharp": "^0.35.3"

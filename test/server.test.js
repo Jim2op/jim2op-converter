@@ -1,10 +1,14 @@
 import assert from 'node:assert/strict';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import sharp from 'sharp';
 import request from 'supertest';
 import { createApp } from '../server.js';
 
 const app = createApp();
+const workerFixture = fileURLToPath(new URL('./fixtures/fake_yt_dlp_worker.py', import.meta.url));
+const youtubeApp = createApp({ workerPath: workerFixture, cookiesDirectory: '/tmp/does-not-exist' });
+const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 test('the JavaScript shell serves all browser routes', async () => {
   for (const path of ['/', '/image', '/video', '/youtube']) {
@@ -43,4 +47,28 @@ test('the Node API converts an uploaded PNG into a JPEG download', async () => {
   assert.match(response.headers['content-type'], /image\/jpeg/);
   assert.match(response.headers['content-disposition'], /fixture\.jpg/);
   assert.ok(response.body.length > 0);
+});
+
+test('the Node bridge exposes yt-dlp worker progress and returns its completed result', async () => {
+  const start = await request(youtubeApp)
+    .post('/api/youtube/download')
+    .type('form')
+    .send({ youtube_url: 'https://www.youtube.com/watch?v=test-video', format: 'MP4', quality: '720' });
+  assert.equal(start.status, 202);
+  assert.ok(start.body.job_id);
+
+  let progress;
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    progress = await request(youtubeApp).get(`/api/youtube/progress/${start.body.job_id}`);
+    if (progress.body.state === 'completed') break;
+    await sleep(20);
+  }
+  assert.equal(progress.status, 200);
+  assert.equal(progress.body.state, 'completed');
+  assert.equal(progress.body.progress, 100);
+
+  const result = await request(youtubeApp).get(`/api/youtube/result/${start.body.job_id}`);
+  assert.equal(result.status, 200);
+  assert.match(result.headers['content-type'], /video\/mp4/);
+  assert.match(result.headers['content-disposition'], /test-download\.mp4/);
 });

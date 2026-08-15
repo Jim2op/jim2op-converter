@@ -1,7 +1,6 @@
 import express from 'express';
 import multer from 'multer';
 import sharp from 'sharp';
-import ytdl from '@distube/ytdl-core';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
@@ -13,6 +12,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STATIC_DIRECTORY = path.join(__dirname, 'static');
 const UPLOAD_DIRECTORY = path.join(os.tmpdir(), 'jim2op-converter-uploads');
 const WORK_DIRECTORY = path.join(os.tmpdir(), 'jim2op-converter-jobs');
+const DEFAULT_PYTHON_EXECUTABLE = process.env.PYTHON_EXECUTABLE || (process.platform === 'win32' ? 'python' : 'python3');
+const DEFAULT_YTDLP_WORKER = path.join(__dirname, 'python', 'yt_dlp_worker.py');
+const DEFAULT_COOKIES_DIRECTORY = process.env.YTDLP_COOKIES_DIRECTORY || path.join(__dirname, 'cookies');
 const IMAGE_FORMATS = ['PNG', 'JPEG', 'WEBP', 'BMP', 'TIFF', 'GIF', 'AVIF'];
 const AUDIO_FORMATS = new Set(['MP3', 'WAV', 'OGG', 'M4A']);
 const VIDEO_FORMATS = new Set(['GIF', ...AUDIO_FORMATS]);
@@ -41,10 +43,17 @@ const upload = multer({
 });
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
-const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 const extensionFor = (format) => format.toLowerCase() === 'jpeg' ? 'jpg' : format.toLowerCase();
 const safeName = (name) => path.basename(name, path.extname(name)).replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 80) || 'converted-file';
 const qualityValues = (format) => format === 'MP4' ? ['1080', '720', '480', '360'] : ['320', '256', '192', '128', '96'];
+
+async function hasCookieDirectory(directory) {
+  try {
+    return (await fs.stat(directory)).isDirectory();
+  } catch {
+    return false;
+  }
+}
 
 async function removeFiles(files) {
   await Promise.all(files.filter(Boolean).map((file) => fs.rm(file, { force: true }).catch(() => {})));
@@ -114,70 +123,89 @@ function publicJob(job) {
   };
 }
 
-async function downloadYoutubeSource(job, url, destination, format) {
-  const filter = format === 'MP4' ? 'audioandvideo' : 'audioonly';
-  const source = ytdl(url, { filter, quality: 'highest' });
-  const file = (await import('node:fs')).createWriteStream(destination);
-  source.on('progress', (_chunkLength, downloaded, total) => {
-    if (total) writeJob(job, { state: 'downloading', progress: (downloaded / total) * 72 });
-  });
-  await new Promise((resolve, reject) => {
-    source.on('error', reject);
-    file.on('error', reject);
-    file.on('finish', resolve);
-    source.pipe(file);
-  });
-}
-
-async function processYoutubeJob(jobId, url, format, quality) {
-  const job = youtubeJobs.get(jobId);
-  if (!job) return;
-  const sourcePath = path.join(WORK_DIRECTORY, `${jobId}.source`);
-  const outputPath = path.join(WORK_DIRECTORY, `${jobId}.${extensionFor(format)}`);
+function validYoutubeUrl(value) {
   try {
-    writeJob(job, { state: 'downloading', progress: 0 });
-    const metadata = await ytdl.getInfo(url);
-    job.title = safeName(metadata.videoDetails.title || 'youtube');
-    await downloadYoutubeSource(job, url, sourcePath, format);
-    writeJob(job, { state: 'processing', progress: 78 });
-
-    if (format === 'MP4') {
-      const scale = quality === '1080' ? null : `scale=-2:'min(ih,${quality})'`;
-      const args = ['-y', '-i', sourcePath];
-      if (scale) args.push('-vf', scale);
-      args.push('-c:v', 'libx264', '-preset', 'veryfast', '-c:a', 'aac', outputPath);
-      await runFfmpeg(args);
-    } else {
-      const audioArgs = {
-        MP3: ['-vn', '-c:a', 'libmp3lame', '-b:a', `${quality}k`],
-        WAV: ['-vn', '-c:a', 'pcm_s16le'],
-        OGG: ['-vn', '-c:a', 'libvorbis', '-b:a', `${quality}k`],
-        M4A: ['-vn', '-c:a', 'aac', '-b:a', `${quality}k`],
-      }[format];
-      await runFfmpeg(['-y', '-i', sourcePath, ...audioArgs, outputPath]);
-    }
-    writeJob(job, { state: 'completed', progress: 100, outputPath, filename: `${job.title}.${extensionFor(format)}`, mimetype: MIME_TYPES[format] });
-  } catch (error) {
-    writeJob(job, { state: 'failed', error: error.message || 'YouTube download failed.' });
-    await removeFiles([outputPath]);
-  } finally {
-    await removeFiles([sourcePath]);
+    const url = new URL(value);
+    const hostname = url.hostname.toLowerCase().replace(/^www\./, '');
+    return hostname === 'youtube.com' || hostname === 'youtu.be' || hostname.endsWith('.youtube.com');
+  } catch {
+    return false;
   }
 }
 
-export function createApp() {
+function processYoutubeJob(jobId, url, format, quality, runtime) {
+  const job = youtubeJobs.get(jobId);
+  if (!job) return;
+  const workerArgs = [
+    runtime.workerPath,
+    '--url', url,
+    '--output-directory', WORK_DIRECTORY,
+    '--format', format,
+    '--quality', quality,
+    '--cookies-directory', runtime.cookiesDirectory,
+  ];
+  const worker = spawn(runtime.pythonExecutable, workerArgs, { windowsHide: true });
+  let stdoutBuffer = '';
+  let stderr = '';
+
+  // The worker emits newline-delimited JSON so the browser can poll real yt-dlp progress.
+  const handleMessage = (line) => {
+    if (!line.trim()) return;
+    try {
+      const message = JSON.parse(line);
+      if (message.event === 'started') {
+        writeJob(job, { state: 'downloading', progress: 0, cookiesConfigured: Boolean(message.cookies_configured) });
+      } else if (message.event === 'progress') {
+        writeJob(job, { state: message.state || 'downloading', progress: message.progress || 0, speed: message.speed, eta: message.eta });
+      } else if (message.event === 'complete') {
+        writeJob(job, {
+          state: 'completed', progress: 100, outputPath: message.path,
+          filename: message.filename || `youtube.${extensionFor(format)}`,
+          mimetype: MIME_TYPES[format],
+        });
+      } else if (message.event === 'error') {
+        writeJob(job, { state: 'failed', error: message.error || 'yt-dlp could not complete the download.' });
+      }
+    } catch {
+      // Ignore non-JSON diagnostic output; stderr is retained for an actionable job error.
+    }
+  };
+
+  worker.stdout.on('data', (chunk) => {
+    stdoutBuffer += chunk.toString();
+    const lines = stdoutBuffer.split(/\r?\n/);
+    stdoutBuffer = lines.pop() || '';
+    lines.forEach(handleMessage);
+  });
+  worker.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+  worker.on('error', (error) => writeJob(job, { state: 'failed', error: `Could not start Python yt-dlp worker: ${error.message}` }));
+  worker.on('close', (code) => {
+    handleMessage(stdoutBuffer);
+    if (code !== 0 && job.state !== 'failed' && job.state !== 'completed') {
+      writeJob(job, { state: 'failed', error: stderr.trim() || 'yt-dlp worker exited before the download completed.' });
+    }
+  });
+}
+
+export function createApp(options = {}) {
+  const runtime = {
+    pythonExecutable: options.pythonExecutable || DEFAULT_PYTHON_EXECUTABLE,
+    workerPath: options.workerPath || DEFAULT_YTDLP_WORKER,
+    cookiesDirectory: options.cookiesDirectory || DEFAULT_COOKIES_DIRECTORY,
+  };
   const app = express();
   app.disable('x-powered-by');
   app.use(express.urlencoded({ extended: false }));
   app.use(express.json());
   app.use('/static', express.static(STATIC_DIRECTORY, { maxAge: '1h' }));
 
-  app.get('/api/config', (_request, response) => {
+  app.get('/api/config', async (_request, response) => {
     response.json({
       image_formats: IMAGE_FORMATS,
       video_outputs: ['GIF', ...AUDIO_FORMATS],
       youtube_video_qualities: qualityValues('MP4'),
       youtube_audio_qualities: qualityValues('MP3'),
+      youtube_cookies_configured: await hasCookieDirectory(runtime.cookiesDirectory),
     });
   });
 
@@ -228,7 +256,7 @@ export function createApp() {
       const format = String(request.body.format || 'MP4').toUpperCase();
       const defaultQuality = format === 'MP4' ? '720' : '192';
       const quality = String(request.body.quality || defaultQuality);
-      if (!ytdl.validateURL(url)) {
+      if (!validYoutubeUrl(url)) {
         const error = new Error('Enter a valid YouTube video URL.');
         error.status = 400;
         throw error;
@@ -240,7 +268,7 @@ export function createApp() {
       }
       const jobId = randomUUID();
       youtubeJobs.set(jobId, { state: 'queued', progress: 0, startedAt: Date.now(), format, quality });
-      processYoutubeJob(jobId, url, format, quality);
+      processYoutubeJob(jobId, url, format, quality, runtime);
       response.status(202).json({ job_id: jobId, state: 'queued' });
     } catch (error) {
       next(error);

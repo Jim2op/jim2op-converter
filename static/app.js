@@ -8,6 +8,7 @@
       video_outputs: ['GIF', 'M4A', 'MP3', 'OGG', 'WAV'],
       youtube_video_qualities: ['1080', '720', '480', '360'],
       youtube_audio_qualities: ['320', '256', '192', '128', '96'],
+      youtube_cookies_configured: false,
     },
   };
 
@@ -146,7 +147,7 @@
             <input type="hidden" name="source" value="youtube">
             <div class="field"><label for="youtubeUrlInput">YouTube video URL</label>
               <input class="input" type="url" name="youtube_url" id="youtubeUrlInput" placeholder="https://www.youtube.com/watch?v=..." required>
-              <span class="field-help">The link is used only to retrieve the video you choose.</span>
+              <span class="field-help">yt-dlp retrieves only the video or audio you choose.</span>
             </div>
             <div class="field-row">
               <div class="field"><label for="formatSelect">Output type</label>
@@ -165,7 +166,7 @@
             <div class="progress-track" role="progressbar" aria-label="YouTube download progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="progress-bar" id="downloadProgressBar"></div></div>
             <p class="progress-stats" id="downloadStats"></p>
           </div>
-          <p class="panel-note">Video quality controls resolution. Audio quality controls bitrate after extracting the audio track.</p>
+          <p class="panel-note">Video quality controls resolution. Audio quality controls bitrate after extracting the audio track. ${state.config.youtube_cookies_configured ? 'A local cookies folder is available for yt-dlp when needed.' : 'No local cookies folder was detected; public downloads can still work.'}</p>
         </div></section>
         <aside class="panel preview-panel" aria-labelledby="youtube-preview-title"><div class="panel-body">
           <div class="preview-label"><span id="youtube-preview-title">Preview</span><span>Video thumbnail</span></div>
@@ -418,6 +419,7 @@
         activeJobId = payload.job_id;
         pollDownload(activeJobId);
       } catch (requestError) {
+        progress.hidden = true;
         error.textContent = requestError.message;
         error.hidden = false;
         button.disabled = false;
