@@ -1,155 +1,126 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Image Converter</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css">
-    <script src="/static/theme.js"></script>
-  </head>
-  <body class="bg-light" style="--page-accent-color: var(--accent);">
-    <nav class="navbar navbar-expand-lg navbar-dark header-bar">
-      <div class="container-fluid">
-        <a class="navbar-brand" href="/">Image Converter</a>
-        <div class="d-flex align-items-center gap-2 ms-auto">
-          <div class="dropdown">
-            <button class="btn btn-sm btn-icon header-action" id="themeMenuButton" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Choose color theme" title="Choose color theme">
-              <span class="theme-icon" aria-hidden="true"></span>
-            </button>
-            <ul class="dropdown-menu dropdown-menu-end" id="themeMenu" aria-labelledby="themeMenuButton">
-              <li><button class="dropdown-item" type="button" data-theme-choice="light">Light</button></li>
-              <li><button class="dropdown-item" type="button" data-theme-choice="dark">Dark</button></li>
-              <li><button class="dropdown-item" type="button" data-theme-choice="system">System</button></li>
-            </ul>
-          </div>
-          <a class="btn btn-sm btn-outline-light" href="/video">Video Converter</a>
-          <a class="btn btn-sm btn-outline-light ms-2" href="/">Home</a>
-        </div>
+{% extends "base.html" %}
+{% set active_page = 'image' %}
+{% set accent = 'var(--accent)' %}
+
+{% block title %}Image converter — Converter{% endblock %}
+
+{% block content %}
+  <section class="page-shell container">
+    <div class="page-heading">
+      <div>
+        <p class="eyebrow">Image tool</p>
+        <h1>Convert your images.</h1>
       </div>
-    </nav>
+      <p>Choose your files, select an output format, and download the converted image when it is ready.</p>
+    </div>
 
-    <main class="container py-4">
-      <div class="row">
-        <div class="col-lg-7">
-          <div class="card shadow-sm">
-            <div class="card-body">
-              {% with messages = get_flashed_messages() %}
-                {% if messages %}
-                  <div class="alert alert-warning" role="alert">
-                    {{ messages[0] }}
-                  </div>
-                {% endif %}
-              {% endwith %}
+    <div class="workspace">
+      <section class="panel" aria-labelledby="image-form-title">
+        <div class="panel-body">
+          <p class="panel-kicker">Upload and convert</p>
+          <h2 class="panel-title" id="image-form-title">Set up your image conversion</h2>
 
-              <form method="POST" action="/convert" enctype="multipart/form-data">
-                <input type="hidden" name="source" value="image" />
-                <div class="mb-3">
-                  <label class="form-label">Choose images (multiple allowed)</label>
-                  <input class="form-control" type="file" name="image" id="imageInput" accept="image/*" multiple required>
-                </div>
+          {% with messages = get_flashed_messages() %}
+            {% if messages %}
+              <div class="notice" role="alert">{{ messages[0] }}</div>
+            {% endif %}
+          {% endwith %}
 
-                <div class="row g-2">
-                  <div class="col-md-4">
-                    <label class="form-label">Format</label>
-                    <select class="form-select" name="format" id="formatSelect">
-                      {% for f in formats %}
-                        <option value="{{ f }}">{{ f }}</option>
-                      {% endfor %}
-                    </select>
-                  </div>
-                </div>
+          <form method="POST" action="/convert" enctype="multipart/form-data" id="imageForm">
+            <input type="hidden" name="source" value="image">
 
-                <div class="form-check form-switch mt-3">
-                  <input class="form-check-input" type="checkbox" id="preserveAnim" name="preserve_anim" checked>
-                  <label class="form-check-label" for="preserveAnim">Preserve animation (if present)</label>
-                </div>
-
-                <div class="mt-3 d-flex gap-2">
-                  <button type="submit" class="btn btn-primary">Convert & Download</button>
-                  <button type="button" class="btn btn-outline-secondary" id="resetBtn">Reset</button>
-                </div>
-              </form>
-
-              <hr class="my-3">
-              <p class="text-muted small mb-0">Supported formats: {{ formats|join(', ') }}. Auto mode chooses the best color mode based on format and source image.</p>
+            <div class="field">
+              <label for="imageInput">Choose image files</label>
+              <input class="input" type="file" name="image" id="imageInput" accept="image/*" multiple required>
+              <span class="field-help">You can select more than one image. The first selection appears in the preview.</span>
             </div>
-          </div>
-        </div>
 
-        <div class="col-lg-5">
-          <div class="card shadow-sm">
-            <div class="card-body text-center">
-              <h6 class="card-title">Preview (first selected)</h6>
-              <div id="previewBox" class="border rounded p-2 bg-white">
-                <img id="previewImage" src="" alt="Preview" style="max-width:100%; max-height:320px; display:none;" />
-                <video id="previewVideo" controls style="max-width:100%; max-height:320px; display:none;"></video>
-                <div id="previewPlaceholder" class="text-muted">No image selected</div>
+            <div class="field-row">
+              <div class="field">
+                <label for="formatSelect">Output format</label>
+                <select class="select" name="format" id="formatSelect">
+                  {% for f in formats %}
+                    <option value="{{ f }}">{{ f }}</option>
+                  {% endfor %}
+                </select>
               </div>
-              <div id="selectedCount" class="mt-2 small text-muted"></div>
+            </div>
+
+            <label class="switch-row" for="preserveAnim">
+              <input type="checkbox" id="preserveAnim" name="preserve_anim" checked>
+              <span>Preserve animation when the selected format supports it</span>
+            </label>
+
+            <div class="actions">
+              <button class="button" type="submit">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"></path></svg>
+                Convert &amp; download
+              </button>
+              <button class="button button-secondary" type="button" id="resetBtn">Reset</button>
+            </div>
+          </form>
+
+          <p class="panel-note">Supported formats: {{ formats|join(', ') }}. Auto mode chooses a compatible color mode for the image and output format.</p>
+        </div>
+      </section>
+
+      <aside class="panel preview-panel" aria-labelledby="image-preview-title">
+        <div class="panel-body">
+          <div class="preview-label">
+            <span id="image-preview-title">Preview</span>
+            <span>First file</span>
+          </div>
+          <div class="preview-frame" id="previewBox">
+            <img id="previewImage" src="" alt="Selected image preview" hidden>
+            <div class="preview-placeholder" id="previewPlaceholder">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><circle cx="8.5" cy="9" r="1.5"></circle><path d="m4 17 5-5 4 4 2-2 5 3"></path></svg>
+              <span>Select an image to see it here.</span>
             </div>
           </div>
-
-          <div class="mt-3 text-center small text-muted">Tip: You can upload multiple images at once. Animated images (GIF/WebP) will be preserved if possible.</div>
+          <p class="file-meta" id="selectedCount" aria-live="polite"></p>
         </div>
-      </div>
-    </main>
+      </aside>
+    </div>
+  </section>
+{% endblock %}
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-      const imageInput = document.getElementById('imageInput');
-      const previewImage = document.getElementById('previewImage');
-      const previewVideo = document.getElementById('previewVideo');
-      const previewPlaceholder = document.getElementById('previewPlaceholder');
-      const formatSelect = document.getElementById('formatSelect');
-      const resetBtn = document.getElementById('resetBtn');
-      const selectedCount = document.getElementById('selectedCount');
+{% block scripts %}
+  <script>
+    (() => {
+      const form = document.getElementById('imageForm');
+      const input = document.getElementById('imageInput');
+      const image = document.getElementById('previewImage');
+      const placeholder = document.getElementById('previewPlaceholder');
+      const count = document.getElementById('selectedCount');
+      const reset = document.getElementById('resetBtn');
+      let previewUrl = null;
 
+      // Render only the first selected file; all selected files remain attached to the form.
+      const clearPreview = () => {
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        previewUrl = null;
+        image.removeAttribute('src');
+        image.hidden = true;
+        placeholder.hidden = false;
+        count.textContent = '';
+      };
 
-      imageInput.addEventListener('change', (e) => {
-        const file = e.target.files && e.target.files[0];
-        const files = e.target.files;
-        if (!file) {
-          previewImage.style.display = 'none';
-          previewVideo.style.display = 'none';
-          previewPlaceholder.style.display = 'block';
-          selectedCount.textContent = '';
-          return;
-        }
+      input.addEventListener('change', () => {
+        const [file] = input.files;
+        clearPreview();
+        if (!file) return;
 
-        selectedCount.textContent = files.length + ' file(s) selected';
-
-        const reader = new FileReader();
-        if (file.type.startsWith('video/')) {
-          reader.onload = function(ev) {
-            previewVideo.src = ev.target.result;
-            previewVideo.style.display = 'block';
-            previewVideo.play();
-            previewImage.style.display = 'none';
-            previewPlaceholder.style.display = 'none';
-          }
-          reader.readAsDataURL(file);
-        } else {
-          reader.onload = function(ev) {
-            previewImage.src = ev.target.result;
-            previewImage.style.display = 'block';
-            previewVideo.style.display = 'none';
-            previewPlaceholder.style.display = 'none';
-          }
-          reader.readAsDataURL(file);
-        }
+        previewUrl = URL.createObjectURL(file);
+        image.src = previewUrl;
+        image.hidden = false;
+        placeholder.hidden = true;
+        count.textContent = `${input.files.length} file${input.files.length === 1 ? '' : 's'} selected · ${file.name}`;
       });
 
-      resetBtn.addEventListener('click', () => {
-        document.querySelector('form').reset();
-        previewImage.src = '';
-        previewImage.style.display = 'none';
-        previewVideo.src = '';
-        previewVideo.style.display = 'none';
-        previewPlaceholder.style.display = 'block';
-        selectedCount.textContent = '';
+      reset.addEventListener('click', () => {
+        form.reset();
+        clearPreview();
       });
-
-    </script>
-  </body>
-</html>
+    })();
+  </script>
+{% endblock %}
