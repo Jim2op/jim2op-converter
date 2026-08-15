@@ -84,3 +84,14 @@ npm test
 ## Access from another device
 
 The server binds to all local network interfaces. Find your computer’s local IPv4 address with `ipconfig`, then open `http://YOUR-IP:5000` from another device on the same network. If Windows prompts for firewall access, allow Node.js on private networks.
+
+## Troubleshooting a YouTube 403 response
+
+A **403 Forbidden** response is usually caused by an outdated yt-dlp installation or a missing, expired, or incorrectly exported cookie file. Update the downloader first, then restart the Node server:
+
+```powershell
+python -m pip install --upgrade yt-dlp
+npm run dev
+```
+
+If the 403 response remains, export **fresh cookies** from the browser account you use for YouTube in Netscape format and save the export as `cookies\cookies.txt`. Do not copy Chrome’s internal `Cookies` database file: yt-dlp requires a Netscape-format text export. The YouTube progress panel now indicates when it cannot find a valid export.

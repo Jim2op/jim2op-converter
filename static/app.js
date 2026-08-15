@@ -366,7 +366,7 @@
         const response = await fetch(`/api/youtube/progress/${jobId}`);
         const job = await response.json();
         if (!response.ok) throw new Error(job.error || 'Unable to read download status.');
-        const detail = [`Elapsed ${Math.floor(job.elapsed / 60)}m ${job.elapsed % 60}s`, job.speed, job.eta ? `ETA ${job.eta}` : ''].filter(Boolean).join(' · ');
+        const detail = [`Elapsed ${Math.floor(job.elapsed / 60)}m ${job.elapsed % 60}s`, job.speed, job.eta ? `ETA ${job.eta}` : '', job.cookiesIssue].filter(Boolean).join(' · ');
         setProgress(job.progress, job.state, detail);
         if (job.state === 'completed') {
           activeJobId = null;

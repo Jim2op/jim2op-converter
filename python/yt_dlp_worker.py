@@ -25,24 +25,60 @@ def clean_title(title: str) -> str:
     return re.sub(r"[^A-Za-z0-9._-]+", "_", title).strip("._")[:100] or "youtube-download"
 
 
-def find_cookie_file(cookies_directory: str | None) -> Path | None:
-    """Select a Netscape-format cookie export without reading or logging its contents."""
+def is_netscape_cookie_export(cookie_file: Path) -> bool:
+    """Verify the file resembles a browser-exported Netscape cookie jar, not a browser database."""
+    try:
+        with cookie_file.open("r", encoding="utf-8", errors="ignore") as handle:
+            for _ in range(12):
+                line = handle.readline()
+                if not line:
+                    break
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                if "Netscape HTTP Cookie File" in stripped or "HTTP Cookie File" in stripped:
+                    return True
+                # Valid Netscape records have seven tab-delimited fields; no cookie values are retained.
+                if stripped.count("\t") >= 6:
+                    return True
+    except OSError:
+        return False
+    return False
+
+
+def find_cookie_file(cookies_directory: str | None) -> tuple[Path | None, str | None]:
+    """Select a valid Netscape-format export without reading or logging cookie contents."""
     if not cookies_directory:
-        return None
+        return None, "No cookies directory was configured."
     directory = Path(cookies_directory)
     if not directory.is_dir():
-        return None
+        return None, "Cookies folder was not found."
 
     preferred_names = ("cookies.txt", "youtube-cookies.txt", "youtube.txt")
-    for name in preferred_names:
-        candidate = directory / name
-        if candidate.is_file():
-            return candidate
+    candidates = [directory / name for name in preferred_names]
+    candidates.extend(sorted(directory.glob("*.txt")))
+    for candidate in candidates:
+        if candidate.is_file() and is_netscape_cookie_export(candidate):
+            return candidate, None
+    return None, "No valid Netscape-format cookies.txt export was found."
 
-    for candidate in sorted(directory.glob("*.txt")):
-        if candidate.is_file():
-            return candidate
-    return None
+
+def friendly_error(error: Exception, cookie_file: Path | None, cookie_issue: str | None) -> str:
+    """Turn common downloader failures into recovery steps without exposing private cookie data."""
+    message = str(error).strip() or "yt-dlp could not complete the download."
+    if "403" in message or "Forbidden" in message:
+        if cookie_file:
+            return (
+                "YouTube returned 403 Forbidden. Update yt-dlp, then replace cookies.txt with a fresh "
+                "Netscape-format export from the same browser account. Existing cookies may be expired."
+            )
+        return (
+            "YouTube returned 403 Forbidden. Update yt-dlp and add a fresh Netscape-format cookies.txt "
+            "export to the project cookies folder, then restart the Node server."
+        )
+    if cookie_issue and "cookie" in message.lower():
+        return f"{message} {cookie_issue}"
+    return message
 
 
 def options_for(args: argparse.Namespace, cookie_file: Path | None) -> dict[str, Any]:
@@ -55,6 +91,10 @@ def options_for(args: argparse.Namespace, cookie_file: Path | None) -> dict[str,
         "restrictfilenames": True,
         "quiet": True,
         "no_warnings": True,
+        "retries": 3,
+        "fragment_retries": 3,
+        "extractor_retries": 3,
+        "concurrent_fragment_downloads": 1,
         "progress_hooks": [progress_hook],
         "merge_output_format": "mp4",
     }
@@ -107,8 +147,12 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    cookie_file = find_cookie_file(args.cookies_directory)
-    emit({"event": "started", "cookies_configured": bool(cookie_file)})
+    cookie_file, cookie_issue = find_cookie_file(args.cookies_directory)
+    emit({
+        "event": "started",
+        "cookies_configured": bool(cookie_file),
+        "cookies_issue": cookie_issue,
+    })
     try:
         with yt_dlp.YoutubeDL(options_for(args, cookie_file)) as downloader:
             metadata = downloader.extract_info(args.url, download=True)
@@ -130,7 +174,7 @@ def main() -> int:
         })
         return 0
     except Exception as error:  # yt-dlp raises several provider-specific exception types.
-        emit({"event": "error", "error": str(error)})
+        emit({"event": "error", "error": friendly_error(error, cookie_file, cookie_issue)})
         return 1
 
 

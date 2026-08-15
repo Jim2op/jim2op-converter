@@ -120,6 +120,7 @@ function publicJob(job) {
     eta: job.eta || null,
     elapsed: Math.max(0, Math.floor((Date.now() - job.startedAt) / 1000)),
     error: job.error || null,
+    cookiesIssue: job.cookiesIssue || null,
   };
 }
 
@@ -154,7 +155,11 @@ function processYoutubeJob(jobId, url, format, quality, runtime) {
     try {
       const message = JSON.parse(line);
       if (message.event === 'started') {
-        writeJob(job, { state: 'downloading', progress: 0, cookiesConfigured: Boolean(message.cookies_configured) });
+        writeJob(job, {
+          state: 'downloading', progress: 0,
+          cookiesConfigured: Boolean(message.cookies_configured),
+          cookiesIssue: message.cookies_issue || null,
+        });
       } else if (message.event === 'progress') {
         writeJob(job, { state: message.state || 'downloading', progress: message.progress || 0, speed: message.speed, eta: message.eta });
       } else if (message.event === 'complete') {
