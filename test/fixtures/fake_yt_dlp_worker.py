@@ -11,6 +11,7 @@ parser.add_argument("--output-directory", required=True)
 parser.add_argument("--format", required=True)
 parser.add_argument("--quality", required=True)
 parser.add_argument("--cookies-directory", required=True)
+parser.add_argument("--job-id", required=True)
 args = parser.parse_args()
 
 output_directory = Path(args.output_directory)
@@ -21,4 +22,4 @@ output_path.write_bytes(b"yt-dlp test fixture")
 # These records mirror the real worker so the Node bridge can be tested deterministically.
 print(json.dumps({"event": "started", "cookies_configured": False}), flush=True)
 print(json.dumps({"event": "progress", "state": "downloading", "progress": 48, "speed": 1024, "eta": 1}), flush=True)
-print(json.dumps({"event": "complete", "path": str(output_path), "filename": output_path.name, "title": "test-download"}), flush=True)
+print(json.dumps({"event": "complete", "path": str(output_path), "filename": output_path.name, "mimetype": "video/mp4" if args.format == "MP4" else "audio/mpeg", "title": "test-download"}), flush=True)

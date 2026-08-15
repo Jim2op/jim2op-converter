@@ -144,6 +144,7 @@ function processYoutubeJob(jobId, url, format, quality, runtime) {
     '--format', format,
     '--quality', quality,
     '--cookies-directory', runtime.cookiesDirectory,
+    '--job-id', jobId,
   ];
   const worker = spawn(runtime.pythonExecutable, workerArgs, { windowsHide: true });
   let stdoutBuffer = '';
@@ -166,7 +167,8 @@ function processYoutubeJob(jobId, url, format, quality, runtime) {
         writeJob(job, {
           state: 'completed', progress: 100, outputPath: message.path,
           filename: message.filename || `youtube.${extensionFor(format)}`,
-          mimetype: MIME_TYPES[format],
+          mimetype: message.mimetype || MIME_TYPES[format],
+          archive: Boolean(message.archive),
         });
       } else if (message.event === 'error') {
         writeJob(job, { state: 'failed', error: message.error || 'yt-dlp could not complete the download.' });
@@ -262,7 +264,7 @@ export function createApp(options = {}) {
       const defaultQuality = format === 'MP4' ? '720' : '192';
       const quality = String(request.body.quality || defaultQuality);
       if (!validYoutubeUrl(url)) {
-        const error = new Error('Enter a valid YouTube video URL.');
+        const error = new Error('Enter a valid YouTube video or playlist URL.');
         error.status = 400;
         throw error;
       }

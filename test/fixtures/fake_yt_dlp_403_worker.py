@@ -10,6 +10,7 @@ parser.add_argument("--output-directory", required=True)
 parser.add_argument("--format", required=True)
 parser.add_argument("--quality", required=True)
 parser.add_argument("--cookies-directory", required=True)
+parser.add_argument("--job-id", required=True)
 parser.parse_args()
 
 print(json.dumps({

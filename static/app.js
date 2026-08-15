@@ -48,7 +48,7 @@
     <section class="tool-grid container" aria-label="Conversion tools">
       ${toolCard('/image', 'image', 'Image converter', 'Convert common image formats and preserve animation where supported.', 'accent', 'Convert images')}
       ${toolCard('/video', 'video', 'Video &amp; audio', 'Turn video into a GIF, or extract its audio track in the format you prefer.', 'success', 'Convert media')}
-      ${toolCard('/youtube', 'video', 'YouTube downloader', 'Download a public video or audio track with visible conversion progress.', 'danger', 'Open YouTube tool')}
+      ${toolCard('/youtube', 'video', 'YouTube downloader', 'Download a public video, playlist, or audio track with visible conversion progress.', 'danger', 'Open YouTube tool')}
     </section>`;
 
   const previewPlaceholder = (icon, label) => `
@@ -138,16 +138,16 @@
     <section class="page-shell container" style="--page-accent-color: var(--danger);">
       <div class="page-heading">
         <div><p class="eyebrow">YouTube tool</p><h1>Download with clarity.</h1></div>
-        <p>Paste a public YouTube link, select an output and quality, then follow the conversion as it happens.</p>
+        <p>Paste a public YouTube video or playlist link, select an output and quality, then follow the conversion as it happens.</p>
       </div>
       <div class="workspace">
         <section class="panel" aria-labelledby="youtube-form-title"><div class="panel-body">
           <p class="panel-kicker">Link and convert</p><h2 class="panel-title" id="youtube-form-title">Set up your download</h2>
           <form id="youtubeForm">
             <input type="hidden" name="source" value="youtube">
-            <div class="field"><label for="youtubeUrlInput">YouTube video URL</label>
-              <input class="input" type="url" name="youtube_url" id="youtubeUrlInput" placeholder="https://www.youtube.com/watch?v=..." required>
-              <span class="field-help">yt-dlp retrieves only the video or audio you choose.</span>
+            <div class="field"><label for="youtubeUrlInput">YouTube video or playlist URL</label>
+              <input class="input" type="url" name="youtube_url" id="youtubeUrlInput" placeholder="https://www.youtube.com/watch?v=... or ...?list=..." required>
+              <span class="field-help">A video returns one file; a playlist is downloaded as a ZIP archive.</span>
             </div>
             <div class="field-row">
               <div class="field"><label for="formatSelect">Output type</label>
@@ -166,7 +166,7 @@
             <div class="progress-track" role="progressbar" aria-label="YouTube download progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="progress-bar" id="downloadProgressBar"></div></div>
             <p class="progress-stats" id="downloadStats"></p>
           </div>
-          <p class="panel-note">Video quality controls resolution. Audio quality controls bitrate after extracting the audio track. ${state.config.youtube_cookies_configured ? 'A local cookies folder is available for yt-dlp when needed.' : 'No local cookies folder was detected; public downloads can still work.'}</p>
+          <p class="panel-note">Video quality controls resolution. Audio quality controls bitrate after extracting the audio track. Playlist downloads are returned as one ZIP archive. ${state.config.youtube_cookies_configured ? 'A local cookies folder is available for yt-dlp when needed.' : 'No local cookies folder was detected; public downloads can still work.'}</p>
         </div></section>
         <aside class="panel preview-panel" aria-labelledby="youtube-preview-title"><div class="panel-body">
           <div class="preview-label"><span id="youtube-preview-title">Preview</span><span>Video thumbnail</span></div>

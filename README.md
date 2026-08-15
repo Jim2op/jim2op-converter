@@ -2,7 +2,7 @@
 
 Converter is a **Node.js web application** with a static JavaScript frontend. The Node service manages file-conversion APIs, while a small local Python worker uses **yt-dlp** for YouTube download jobs. Flask is not used.
 
-The browser interface is rendered by `static/app.js`. `server.js` serves the interface, manages conversion jobs, and starts `python/yt_dlp_worker.py` only for YouTube requests.
+The browser interface is rendered by `static/app.js`. `server.js` serves the interface, manages conversion jobs, and starts `python/yt_dlp_worker.py` only for YouTube requests. YouTube video URLs return one media file; playlist URLs download every available item and return the completed media as a ZIP archive.
 
 ## Requirements
 
@@ -66,12 +66,16 @@ npm run dev
 | Location | Responsibility |
 |---|---|
 | `server.js` | Express server, local file conversion, API routes, yt-dlp job management, and worker status bridge. |
-| `python/yt_dlp_worker.py` | Python yt-dlp worker with JSON progress output and safe cookie-file selection. |
+| `python/yt_dlp_worker.py` | Python yt-dlp worker with JSON progress output, playlist ZIP packaging, and safe cookie-file selection. |
 | `python/requirements.txt` | Python dependency for the yt-dlp worker. |
 | `static/index.html` | Static application shell. |
 | `static/app.js` | Client-side routes, UI state, previews, status feedback, and API requests. |
 | `static/style.css` | Shared responsive light and dark UI styling. |
 | `test/server.test.js` | Node.js tests for the static shell and API contract. |
+
+## YouTube playlists
+
+Paste either a video URL or a playlist URL into the YouTube tool. The selected MP4 or audio format and quality are applied to each playlist item, and the completed items are packaged into one ZIP download so the existing single-result job API remains reliable. Playlist downloads use the same cookie and 403 recovery flow as individual videos.
 
 ## Tests
 

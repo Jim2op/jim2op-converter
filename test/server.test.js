@@ -10,6 +10,8 @@ const workerFixture = fileURLToPath(new URL('./fixtures/fake_yt_dlp_worker.py', 
 const youtubeApp = createApp({ workerPath: workerFixture, cookiesDirectory: '/tmp/does-not-exist' });
 const forbiddenWorkerFixture = fileURLToPath(new URL('./fixtures/fake_yt_dlp_403_worker.py', import.meta.url));
 const forbiddenYoutubeApp = createApp({ workerPath: forbiddenWorkerFixture, cookiesDirectory: '/tmp/does-not-exist' });
+const playlistWorkerFixture = fileURLToPath(new URL('./fixtures/fake_yt_dlp_playlist_worker.py', import.meta.url));
+const playlistYoutubeApp = createApp({ workerPath: playlistWorkerFixture, cookiesDirectory: '/tmp/does-not-exist' });
 const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 test('the JavaScript shell serves all browser routes', async () => {
@@ -73,6 +75,27 @@ test('the Node bridge exposes yt-dlp worker progress and returns its completed r
   assert.equal(result.status, 200);
   assert.match(result.headers['content-type'], /video\/mp4/);
   assert.match(result.headers['content-disposition'], /test-download\.mp4/);
+});
+
+test('the Node bridge returns playlist downloads as ZIP archives', async () => {
+  const start = await request(playlistYoutubeApp)
+    .post('/api/youtube/download')
+    .type('form')
+    .send({ youtube_url: 'https://www.youtube.com/playlist?list=test-playlist', format: 'MP3', quality: '192' });
+  assert.equal(start.status, 202);
+
+  let progress;
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    progress = await request(playlistYoutubeApp).get(`/api/youtube/progress/${start.body.job_id}`);
+    if (progress.body.state === 'completed') break;
+    await sleep(20);
+  }
+  assert.equal(progress.body.state, 'completed');
+
+  const result = await request(playlistYoutubeApp).get(`/api/youtube/result/${start.body.job_id}`);
+  assert.equal(result.status, 200);
+  assert.match(result.headers['content-type'], /application\/zip/);
+  assert.match(result.headers['content-disposition'], /test-playlist\.zip/);
 });
 
 test('the Node bridge relays yt-dlp 403 cookie recovery guidance to the frontend', async () => {

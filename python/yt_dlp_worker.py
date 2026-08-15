@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Run one yt-dlp job and report machine-readable progress to the Node.js server."""
 
 from __future__ import annotations
@@ -6,7 +5,8 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import sys
+import shutil
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -81,13 +81,13 @@ def friendly_error(error: Exception, cookie_file: Path | None, cookie_issue: str
     return message
 
 
-def options_for(args: argparse.Namespace, cookie_file: Path | None) -> dict[str, Any]:
-    """Build yt-dlp options for a single video or audio download."""
-    output_directory = Path(args.output_directory)
+def options_for(args: argparse.Namespace, cookie_file: Path | None, output_directory: Path) -> dict[str, Any]:
+    """Build yt-dlp options that accept either a single video or a complete playlist."""
     output_directory.mkdir(parents=True, exist_ok=True)
     options: dict[str, Any] = {
         "outtmpl": str(output_directory / "%(title).180B-%(id)s.%(ext)s"),
-        "noplaylist": True,
+        # A playlist is intentionally retained; the worker packages its completed items below.
+        "noplaylist": False,
         "restrictfilenames": True,
         "quiet": True,
         "no_warnings": True,
@@ -136,13 +136,31 @@ def progress_hook(status: dict[str, Any]) -> None:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Download one YouTube item with yt-dlp.")
+    parser = argparse.ArgumentParser(description="Download one YouTube item or playlist with yt-dlp.")
     parser.add_argument("--url", required=True)
     parser.add_argument("--output-directory", required=True)
     parser.add_argument("--format", required=True, choices=("MP4", "MP3", "WAV", "OGG", "M4A"))
     parser.add_argument("--quality", required=True)
     parser.add_argument("--cookies-directory")
+    parser.add_argument("--job-id", required=True)
     return parser.parse_args()
+
+
+def output_extension(args: argparse.Namespace) -> str:
+    return ".mp4" if args.format == "MP4" else f".{args.format.lower()}"
+
+
+def make_playlist_archive(download_directory: Path, playlist_title: str, job_id: str) -> Path:
+    """Package playlist media into one archive so the HTTP result remains a single download."""
+    archive_path = download_directory.parent / f"{clean_title(playlist_title)}-{job_id}.zip"
+    files = sorted(file for file in download_directory.iterdir() if file.is_file())
+    if not files:
+        raise RuntimeError("yt-dlp completed without producing playlist files.")
+    with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for file in files:
+            archive.write(file, file.name)
+    shutil.rmtree(download_directory, ignore_errors=True)
+    return archive_path
 
 
 def main() -> int:
@@ -153,27 +171,37 @@ def main() -> int:
         "cookies_configured": bool(cookie_file),
         "cookies_issue": cookie_issue,
     })
+    download_directory = Path(args.output_directory) / args.job_id
     try:
-        with yt_dlp.YoutubeDL(options_for(args, cookie_file)) as downloader:
+        with yt_dlp.YoutubeDL(options_for(args, cookie_file, download_directory)) as downloader:
             metadata = downloader.extract_info(args.url, download=True)
             title = clean_title(metadata.get("title") or "youtube-download")
-            original_path = Path(downloader.prepare_filename(metadata))
+            is_playlist = metadata.get("_type") == "playlist" or metadata.get("entries") is not None
+            if is_playlist:
+                output_path = make_playlist_archive(download_directory, title, args.job_id)
+                mimetype = "application/zip"
+                filename = f"{title}.zip"
+            else:
+                original_path = Path(downloader.prepare_filename(metadata))
+                output_path = original_path.with_suffix(output_extension(args))
+                if not output_path.is_file():
+                    raise RuntimeError("yt-dlp completed without producing the expected output file.")
+                mimetype = None
+                filename = output_path.name
 
-        if args.format == "MP4":
-            output_path = original_path.with_suffix(".mp4")
-        else:
-            output_path = original_path.with_suffix(f".{args.format.lower()}")
         if not output_path.is_file():
             raise RuntimeError("yt-dlp completed without producing the expected output file.")
-
         emit({
             "event": "complete",
             "path": str(output_path),
-            "filename": output_path.name,
+            "filename": filename,
+            **({"mimetype": mimetype} if mimetype else {}),
+            "archive": is_playlist,
             "title": title,
         })
         return 0
     except Exception as error:  # yt-dlp raises several provider-specific exception types.
+        shutil.rmtree(download_directory, ignore_errors=True)
         emit({"event": "error", "error": friendly_error(error, cookie_file, cookie_issue)})
         return 1
 
