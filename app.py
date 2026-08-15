@@ -6,7 +6,7 @@ import threading
 import time
 import uuid
 from pathlib import Path
-from flask import Flask, jsonify, render_template, request, send_file, flash, redirect, url_for
+from flask import Flask, jsonify, request, send_file, send_from_directory, flash, get_flashed_messages
 from PIL import Image, ImageSequence
 import imageio_ffmpeg
 
@@ -249,30 +249,27 @@ def _choose_mode_auto(fmt: str, img: Image.Image) -> str:
 
 
 @app.route('/', methods=['GET'])
-def index():
-    # Main menu page
-    return render_template('home.html')
-
-
 @app.route('/image', methods=['GET'])
-def image_page():
-    # Image conversion page
-    return render_template('image.html', formats=SUPPORTED_FORMATS, modes=MODES)
-
-
 @app.route('/video', methods=['GET'])
-def video():
-    # Video/Audio page: allow GIF and audio extraction.
-    return render_template('video.html', modes=MODES)
-
-
 @app.route('/youtube', methods=['GET'])
-def youtube_page():
-    # Dedicated YouTube conversion page.
-    return render_template('youtube.html')
+def frontend_app():
+    """Serve one static shell; routing and view rendering live in app.js."""
+    return send_from_directory(app.static_folder, 'index.html')
 
 
-@app.route('/youtube/download', methods=['POST'])
+@app.route('/api/config', methods=['GET'])
+def app_config():
+    """Expose UI options without embedding Python values in frontend markup."""
+    return jsonify({
+        'image_formats': SUPPORTED_FORMATS,
+        'video_outputs': ['GIF', *sorted(AUDIO_FORMATS)],
+        'youtube_video_qualities': VIDEO_QUALITY_CHOICES,
+        'youtube_audio_qualities': AUDIO_QUALITY_CHOICES,
+    })
+
+
+@app.route('/api/youtube/download', methods=['POST'])
+@app.route('/youtube/download', methods=['POST'])  # Backward-compatible API alias.
 def youtube_download():
     youtube_url = (request.form.get('youtube_url') or '').strip()
     output_format = (request.form.get('format') or 'MP4').upper()
@@ -308,7 +305,8 @@ def youtube_download():
     return jsonify({'job_id': job_id, 'state': 'queued'}), 202
 
 
-@app.route('/youtube/progress/<job_id>', methods=['GET'])
+@app.route('/api/youtube/progress/<job_id>', methods=['GET'])
+@app.route('/youtube/progress/<job_id>', methods=['GET'])  # Backward-compatible API alias.
 def youtube_progress(job_id: str):
     with YOUTUBE_JOBS_LOCK:
         job = YOUTUBE_JOBS.get(job_id)
@@ -317,7 +315,8 @@ def youtube_progress(job_id: str):
         return jsonify(_youtube_job_public_state(job))
 
 
-@app.route('/youtube/result/<job_id>', methods=['GET'])
+@app.route('/api/youtube/result/<job_id>', methods=['GET'])
+@app.route('/youtube/result/<job_id>', methods=['GET'])  # Backward-compatible API alias.
 def youtube_result(job_id: str):
     with YOUTUBE_JOBS_LOCK:
         job = YOUTUBE_JOBS.get(job_id)
@@ -351,16 +350,13 @@ def youtube_result(job_id: str):
 
 
 def _redirect_source(source: str):
-    if source == 'youtube':
-        return redirect(url_for('youtube_page'))
-    if source == 'video':
-        return redirect(url_for('video'))
-    if source == 'image':
-        return redirect(url_for('image_page'))
-    return redirect(url_for('index'))
+    """Return conversion failures as JSON for the client-side application."""
+    messages = get_flashed_messages()
+    return jsonify({'error': messages[0] if messages else 'Conversion failed.'}), 400
 
 
-@app.route('/convert', methods=['POST'])
+@app.route('/api/convert', methods=['POST'])
+@app.route('/convert', methods=['POST'])  # Backward-compatible API alias.
 def convert():
     # Support either an uploaded file or a YouTube URL
     source = request.form.get('source', 'video')

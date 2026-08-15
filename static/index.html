@@ -4,19 +4,18 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#4B9CD3">
-    <title>{% block title %}Converter{% endblock %}</title>
+    <title>Converter — File conversion made simple</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css">
     <script src="/static/theme.js"></script>
-    {% block head %}{% endblock %}
+    <script src="/static/app.js" defer></script>
   </head>
-  <body style="--page-accent-color: {{ accent|default('var(--accent)') }};">
-    {# Shared navigation keeps primary workflows and theme preferences consistent. #}
+  <body>
     <header class="site-header">
       <nav class="app-nav container" aria-label="Primary navigation">
-        <a class="brand" href="/" aria-label="Converter home">
+        <a class="brand" href="/" data-route aria-label="Converter home">
           <span class="brand-mark" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M7 7h10M7 17h10M16 4l3 3-3 3M8 14l-3 3 3 3"/>
@@ -26,9 +25,9 @@
         </a>
 
         <div class="nav-links" aria-label="Conversion tools">
-          <a href="/image" class="{{ 'is-active' if active_page == 'image' else '' }}">Images</a>
-          <a href="/video" class="{{ 'is-active' if active_page == 'video' else '' }}">Video &amp; audio</a>
-          <a href="/youtube" class="{{ 'is-active' if active_page == 'youtube' else '' }}">YouTube</a>
+          <a href="/image" data-route data-view="image">Images</a>
+          <a href="/video" data-route data-view="video">Video &amp; audio</a>
+          <a href="/youtube" data-route data-view="youtube">YouTube</a>
         </div>
 
         <div class="nav-actions">
@@ -40,48 +39,22 @@
               </svg>
             </button>
             <div class="theme-popover" id="themeMenu" role="menu" aria-labelledby="themeMenuButton">
-              <button type="button" data-theme-choice="light" role="menuitem">Light</button>
-              <button type="button" data-theme-choice="dark" role="menuitem">Dark</button>
-              <button type="button" data-theme-choice="system" role="menuitem">System</button>
+              <button type="button" data-theme-choice="light" role="menuitemradio">Light</button>
+              <button type="button" data-theme-choice="dark" role="menuitemradio">Dark</button>
+              <button type="button" data-theme-choice="system" role="menuitemradio">System</button>
             </div>
           </div>
-          <a class="nav-home" href="/">Home</a>
+          <a class="nav-home" href="/" data-route>Home</a>
         </div>
       </nav>
     </header>
 
-    <main>
-      {% block content %}{% endblock %}
-    </main>
+    <main id="app" aria-live="polite"></main>
 
     <footer class="site-footer container">
       <span>Converter</span>
       <span class="footer-divider" aria-hidden="true"></span>
       <span>Simple tools for files and media.</span>
     </footer>
-
-    {# Lightweight custom menu behavior avoids coupling the layout to a UI framework. #}
-    <script>
-      (() => {
-        const button = document.getElementById('themeMenuButton');
-        const menu = document.getElementById('themeMenu');
-        if (!button || !menu) return;
-
-        const closeMenu = () => {
-          menu.classList.remove('is-open');
-          button.setAttribute('aria-expanded', 'false');
-        };
-
-        button.addEventListener('click', () => {
-          const isOpen = menu.classList.toggle('is-open');
-          button.setAttribute('aria-expanded', String(isOpen));
-        });
-
-        document.addEventListener('click', (event) => {
-          if (!menu.contains(event.target) && !button.contains(event.target)) closeMenu();
-        });
-      })();
-    </script>
-    {% block scripts %}{% endblock %}
   </body>
 </html>
