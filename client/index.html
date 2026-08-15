@@ -1,26 +1,57 @@
 <!doctype html>
 <html lang="en">
-
   <head>
-    <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1" />
-    <title>Converter</title>    
-    <!-- THIS IS THE START OF A COMMENT BLOCK, BLOCK TO BE DELETED: Google Fonts here, example:
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    THIS IS THE END OF A COMMENT BLOCK, BLOCK TO BE DELETED -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#4B9CD3">
+    <title>Converter — File conversion made simple</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/manus-storage/style_fbf6598c.css">
+    <script src="/manus-storage/theme_acba53a3.js"></script>
+    <script src="/manus-storage/app_da305a74.js" defer></script>
   </head>
-
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-    <script
-      defer
-      src="%VITE_ANALYTICS_ENDPOINT%/umami"
-      data-website-id="%VITE_ANALYTICS_WEBSITE_ID%"></script>
+    <header class="site-header">
+      <nav class="app-nav container" aria-label="Primary navigation">
+        <a class="brand" href="/" data-route aria-label="Converter home">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M7 7h10M7 17h10M16 4l3 3-3 3M8 14l-3 3 3 3"/>
+            </svg>
+          </span>
+          <span>Converter</span>
+        </a>
+        <div class="nav-links" aria-label="Conversion tools">
+          <a href="/image" data-route data-view="image">Images</a>
+          <a href="/video" data-route data-view="video">Video &amp; audio</a>
+          <a href="/youtube" data-route data-view="youtube">YouTube</a>
+          <a href="/spotify" data-route data-view="spotify">Spotify</a>
+        </div>
+        <div class="nav-actions">
+          <div class="theme-control">
+            <button class="icon-button" id="themeMenuButton" type="button" aria-label="Choose color theme" title="Choose color theme" aria-haspopup="true" aria-expanded="false">
+              <svg class="theme-sun" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                <circle cx="12" cy="12" r="3.5"></circle>
+                <path d="M12 2.5v2M12 19.5v2M21.5 12h-2M4.5 12h-2M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4M18.7 18.7l-1.4-1.4M6.7 6.7 5.3 5.3"></path>
+              </svg>
+            </button>
+            <div class="theme-popover" id="themeMenu" role="menu" aria-labelledby="themeMenuButton">
+              <button type="button" data-theme-choice="light" role="menuitemradio">Light</button>
+              <button type="button" data-theme-choice="dark" role="menuitemradio">Dark</button>
+              <button type="button" data-theme-choice="system" role="menuitemradio">System</button>
+            </div>
+          </div>
+          <a class="nav-home" href="/" data-route>Home</a>
+        </div>
+      </nav>
+    </header>
+    <main id="app" aria-live="polite"></main>
+    <footer class="site-footer container">
+      <span>Converter</span>
+      <span class="footer-divider" aria-hidden="true"></span>
+      <span>Simple tools for files and media.</span>
+    </footer>
   </body>
-
 </html>

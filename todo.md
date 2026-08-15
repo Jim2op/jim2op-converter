@@ -1,0 +1,15 @@
+# Project TODO
+
+- [x] Capture the current converter shell, API behavior, Python workers, and test contracts from the existing repository.
+- [x] Preserve the existing HTML shell, CSS variable names, DM Sans and Manrope typography, theme toggle, and four navigation tools in the Manus frontend.
+- [x] Implement the image conversion upload, preview, format selection, and download flow through `/api/convert`.
+- [x] Implement the video and audio conversion upload, preview, format selection, and download flow through `/api/convert`.
+- [x] Implement YouTube URL validation, thumbnail preview, quality selection, server-side worker jobs, and live polling through `/api/youtube/*`.
+- [x] Implement Spotify oEmbed preview, format and quality selection, playlist-aware worker jobs, and live polling through `/api/spotify/*`.
+- [x] Preserve `.progress-card`, `.progress-current`, and tool-card grid styling without changing their visual contract.
+- [x] Add automated tests for conversion and downloader route contracts plus worker-driven progress updates.
+- [x] Run type checks, tests, and visual checks of every tool page.
+- [x] Document deployment requirements for FFmpeg, yt-dlp, spotDL, and the Python worker runtime.
+- [x] Add Manus-app tests with fake workers for YouTube and Spotify progress, result downloads, and Spotify per-track status fields.
+- [x] Add a Manus-project deployment guide covering FFmpeg, Python, yt-dlp, spotDL, worker files, and the custom Dockerfile contract.
+- [ ] Commit and push the complete Manus web app migration to GitHub.
