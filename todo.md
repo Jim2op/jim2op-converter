@@ -13,3 +13,6 @@
 - [x] Add Manus-app tests with fake workers for YouTube and Spotify progress, result downloads, and Spotify per-track status fields.
 - [x] Add a Manus-project deployment guide covering FFmpeg, Python, yt-dlp, spotDL, worker files, and the custom Dockerfile contract.
 - [x] Commit and push the complete Manus web app migration to GitHub.
+- [x] Refine the desktop tool-card grid to display three groups per row and reduce vertical scrolling without changing the established styling.
+- [ ] Commit the validated compact desktop grid and preserved mobile stacking refinement to GitHub.
+- [x] Apply the compact three-per-row layout to relevant converter form-control groups as well as the home tool cards.
