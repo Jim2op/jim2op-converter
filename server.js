@@ -14,6 +14,7 @@ const UPLOAD_DIRECTORY = path.join(os.tmpdir(), 'jim2op-converter-uploads');
 const WORK_DIRECTORY = path.join(os.tmpdir(), 'jim2op-converter-jobs');
 const DEFAULT_PYTHON_EXECUTABLE = process.env.PYTHON_EXECUTABLE || (process.platform === 'win32' ? 'python' : 'python3');
 const DEFAULT_YTDLP_WORKER = path.join(__dirname, 'python', 'yt_dlp_worker.py');
+const DEFAULT_SPOTIFY_WORKER = path.join(__dirname, 'python', 'spotify_worker.py');
 const DEFAULT_COOKIES_DIRECTORY = process.env.YTDLP_COOKIES_DIRECTORY || path.join(__dirname, 'cookies');
 const IMAGE_FORMATS = ['PNG', 'JPEG', 'WEBP', 'BMP', 'TIFF', 'GIF', 'AVIF'];
 const AUDIO_FORMATS = new Set(['MP3', 'WAV', 'OGG', 'M4A']);
@@ -27,6 +28,7 @@ const MIME_TYPES = {
 };
 
 const youtubeJobs = new Map();
+const spotifyJobs = new Map();
 
 await Promise.all([
   fs.mkdir(UPLOAD_DIRECTORY, { recursive: true }),
@@ -134,6 +136,79 @@ function validYoutubeUrl(value) {
   }
 }
 
+function spotifyResourceKind(value) {
+  try {
+    const url = new URL(value);
+    const hostname = url.hostname.toLowerCase().replace(/^www\./, '');
+    if (hostname !== 'spotify.com' && !hostname.endsWith('.spotify.com')) return null;
+    const pathParts = url.pathname.split('/').filter(Boolean);
+    const resource = pathParts[0] === 'embed' ? pathParts[1] : pathParts[0];
+    return ['track', 'album', 'playlist'].includes(resource) ? resource : null;
+  } catch {
+    return null;
+  }
+}
+
+function processSpotifyJob(jobId, url, kind, format, quality, runtime) {
+  const job = spotifyJobs.get(jobId);
+  if (!job) return;
+  const workerArgs = [
+    runtime.spotifyWorkerPath,
+    '--url', url,
+    '--kind', kind,
+    '--output-directory', job.workDirectory,
+    '--format', format,
+    '--quality', quality,
+    '--cookies-directory', runtime.cookiesDirectory,
+  ];
+  const worker = spawn(runtime.pythonExecutable, workerArgs, { windowsHide: true });
+  let stdoutBuffer = '';
+  let stderr = '';
+
+  // The Spotify worker mirrors the YouTube JSON protocol so the browser can use the same polling model.
+  const handleMessage = (line) => {
+    if (!line.trim()) return;
+    try {
+      const message = JSON.parse(line);
+      if (message.event === 'started') {
+        writeJob(job, {
+          state: 'downloading', progress: 0,
+          cookiesConfigured: Boolean(message.cookies_configured),
+          cookiesIssue: message.cookies_issue || null,
+        });
+      } else if (message.event === 'progress') {
+        writeJob(job, { state: message.state || 'downloading', progress: message.progress || 0, speed: message.speed, eta: message.eta });
+      } else if (message.event === 'complete') {
+        writeJob(job, {
+          state: 'completed', progress: 100, outputPath: message.path,
+          filename: message.filename || `spotify.${extensionFor(format)}`,
+          mimetype: message.mimetype || MIME_TYPES[format],
+          archive: Boolean(message.archive),
+        });
+      } else if (message.event === 'error') {
+        writeJob(job, { state: 'failed', error: message.error || 'spotDL could not complete the download.' });
+      }
+    } catch {
+      // Ignore non-JSON provider diagnostics; stderr is retained for an actionable job error.
+    }
+  };
+
+  worker.stdout.on('data', (chunk) => {
+    stdoutBuffer += chunk.toString();
+    const lines = stdoutBuffer.split(/\r?\n/);
+    stdoutBuffer = lines.pop() || '';
+    lines.forEach(handleMessage);
+  });
+  worker.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+  worker.on('error', (error) => writeJob(job, { state: 'failed', error: `Could not start Python spotDL worker: ${error.message}` }));
+  worker.on('close', (code) => {
+    handleMessage(stdoutBuffer);
+    if (code !== 0 && job.state !== 'failed' && job.state !== 'completed') {
+      writeJob(job, { state: 'failed', error: stderr.trim() || 'spotDL worker exited before the download completed.' });
+    }
+  });
+}
+
 function processYoutubeJob(jobId, url, format, quality, runtime) {
   const job = youtubeJobs.get(jobId);
   if (!job) return;
@@ -198,7 +273,9 @@ export function createApp(options = {}) {
   const runtime = {
     pythonExecutable: options.pythonExecutable || DEFAULT_PYTHON_EXECUTABLE,
     workerPath: options.workerPath || DEFAULT_YTDLP_WORKER,
+    spotifyWorkerPath: options.spotifyWorkerPath || DEFAULT_SPOTIFY_WORKER,
     cookiesDirectory: options.cookiesDirectory || DEFAULT_COOKIES_DIRECTORY,
+    spotifyMetadataFetcher: options.spotifyMetadataFetcher || fetch,
   };
   const app = express();
   app.disable('x-powered-by');
@@ -212,6 +289,7 @@ export function createApp(options = {}) {
       video_outputs: ['GIF', ...AUDIO_FORMATS],
       youtube_video_qualities: qualityValues('MP4'),
       youtube_audio_qualities: qualityValues('MP3'),
+      spotify_audio_qualities: qualityValues('MP3'),
       youtube_cookies_configured: await hasCookieDirectory(runtime.cookiesDirectory),
     });
   });
@@ -282,6 +360,75 @@ export function createApp(options = {}) {
     }
   });
 
+  app.get('/api/spotify/preview', async (request, response, next) => {
+    try {
+      const url = String(request.query.url || '').trim();
+      if (!spotifyResourceKind(url)) {
+        const error = new Error('Enter a valid public Spotify track, album, or playlist URL.');
+        error.status = 400;
+        throw error;
+      }
+      const upstream = await runtime.spotifyMetadataFetcher(`https://open.spotify.com/oembed?url=${encodeURIComponent(url)}`, {
+        signal: AbortSignal.timeout(8_000),
+      });
+      if (!upstream.ok) throw new Error('Spotify preview details are currently unavailable.');
+      const payload = await upstream.json();
+      response.json({
+        title: payload.title || null,
+        author: payload.author_name || null,
+        thumbnail_url: payload.thumbnail_url || null,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/api/spotify/download', async (request, response, next) => {
+    try {
+      const url = String(request.body.spotify_url || '').trim();
+      const kind = spotifyResourceKind(url);
+      const format = String(request.body.format || 'MP3').toUpperCase();
+      const quality = String(request.body.quality || '192');
+      if (!kind) {
+        const error = new Error('Enter a valid public Spotify track, album, or playlist URL.');
+        error.status = 400;
+        throw error;
+      }
+      if (!AUDIO_FORMATS.has(format) || !qualityValues(format).includes(quality)) {
+        const error = new Error('Unsupported Spotify audio output or quality.');
+        error.status = 400;
+        throw error;
+      }
+      const jobId = randomUUID();
+      const workDirectory = path.join(WORK_DIRECTORY, `spotify-${jobId}`);
+      spotifyJobs.set(jobId, { state: 'queued', progress: 0, startedAt: Date.now(), format, quality, kind, workDirectory });
+      processSpotifyJob(jobId, url, kind, format, quality, runtime);
+      response.status(202).json({ job_id: jobId, state: 'queued', kind });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get('/api/spotify/progress/:jobId', (request, response) => {
+    const job = spotifyJobs.get(request.params.jobId);
+    if (!job) return response.status(404).json({ error: 'Download job not found.' });
+    return response.json(publicJob(job));
+  });
+
+  app.get('/api/spotify/result/:jobId', async (request, response, next) => {
+    const job = spotifyJobs.get(request.params.jobId);
+    if (!job) return response.status(404).json({ error: 'Download job not found.' });
+    if (job.state !== 'completed') return response.status(409).json({ error: 'Download is not complete.' });
+    try {
+      const result = await fs.readFile(job.outputPath);
+      response.type(job.mimetype).attachment(job.filename).send(result);
+      await fs.rm(job.workDirectory, { recursive: true, force: true });
+      spotifyJobs.delete(request.params.jobId);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.get('/api/youtube/progress/:jobId', (request, response) => {
     const job = youtubeJobs.get(request.params.jobId);
     if (!job) return response.status(404).json({ error: 'Download job not found.' });
@@ -302,7 +449,7 @@ export function createApp(options = {}) {
   });
 
   // Every browser route returns the same static JavaScript shell; app.js owns view rendering.
-  app.get(['/', '/image', '/video', '/youtube'], (_request, response) => response.sendFile(path.join(STATIC_DIRECTORY, 'index.html')));
+  app.get(['/', '/image', '/video', '/youtube', '/spotify'], (_request, response) => response.sendFile(path.join(STATIC_DIRECTORY, 'index.html')));
 
   app.use((error, _request, response, _next) => {
     const status = error.status || (error.code && String(error.code).startsWith('LIMIT') ? 413 : 500);

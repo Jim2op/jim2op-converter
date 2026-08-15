@@ -8,6 +8,7 @@
       video_outputs: ['GIF', 'M4A', 'MP3', 'OGG', 'WAV'],
       youtube_video_qualities: ['1080', '720', '480', '360'],
       youtube_audio_qualities: ['320', '256', '192', '128', '96'],
+      spotify_audio_qualities: ['320', '256', '192', '128', '96'],
       youtube_cookies_configured: false,
     },
   };
@@ -16,6 +17,7 @@
     image: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><circle cx="8.5" cy="9" r="1.5"></circle><path d="m4 17 5-5 4 4 2-2 5 3"></path></svg>',
     video: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="m10 9 5 3-5 3V9Z"></path></svg>',
     download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"></path></svg>',
+    music: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l10-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="16" cy="16" r="3"></circle></svg>',
   };
 
   const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, (character) => ({
@@ -41,7 +43,7 @@
 
   const homeView = () => `
     <section class="hero container">
-      <p class="eyebrow">One workspace · three tools</p>
+      <p class="eyebrow">One workspace · four tools</p>
       <h1>Convert files with <span>less friction.</span></h1>
       <p class="hero-copy">Choose a tool, set the output you need, and download the result. No crowded controls or unnecessary steps.</p>
     </section>
@@ -49,6 +51,7 @@
       ${toolCard('/image', 'image', 'Image converter', 'Convert common image formats and preserve animation where supported.', 'accent', 'Convert images')}
       ${toolCard('/video', 'video', 'Video &amp; audio', 'Turn video into a GIF, or extract its audio track in the format you prefer.', 'success', 'Convert media')}
       ${toolCard('/youtube', 'video', 'YouTube downloader', 'Download a public video, playlist, or audio track with visible conversion progress.', 'danger', 'Open YouTube tool')}
+      ${toolCard('/spotify', 'music', 'Spotify downloader', 'Download tracks, albums, or playlists with embedded metadata and album art.', 'spotify', 'Open Spotify tool')}
     </section>`;
 
   const previewPlaceholder = (icon, label) => `
@@ -176,7 +179,49 @@
       </div>
     </section>`;
 
-  const pageForPath = (path) => ({ '/image': 'image', '/video': 'video', '/youtube': 'youtube' }[path] || 'home');
+  const spotifyView = () => `
+    <section class="page-shell container" style="--page-accent-color: var(--spotify);">
+      <div class="page-heading">
+        <div><p class="eyebrow">Spotify tool</p><h1>Keep the music details.</h1></div>
+        <p>Paste a public Spotify track, album, or playlist link, choose the same audio settings as YouTube, and download files with metadata and album art.</p>
+      </div>
+      <div class="workspace">
+        <section class="panel" aria-labelledby="spotify-form-title"><div class="panel-body">
+          <p class="panel-kicker">Link and convert</p><h2 class="panel-title" id="spotify-form-title">Set up your music download</h2>
+          <form id="spotifyForm">
+            <input type="hidden" name="source" value="spotify">
+            <div class="field"><label for="spotifyUrlInput">Spotify URL</label>
+              <input class="input" type="url" name="spotify_url" id="spotifyUrlInput" placeholder="https://open.spotify.com/track/... or /playlist/..." required>
+              <span class="field-help">Tracks download individually. Albums and playlists download as a ZIP with an M3U playlist.</span>
+            </div>
+            <div class="field-row">
+              <div class="field"><label for="spotifyFormatSelect">Output type</label>
+                <select class="select" name="format" id="spotifyFormatSelect">${state.config.video_outputs.filter((format) => format !== 'GIF').map((format) => `<option value="${format}">${formatLabel(format)}</option>`).join('')}</select>
+              </div>
+              <div class="field"><label for="spotifyQualitySelect">Audio quality</label>
+                <select class="select" name="quality" id="spotifyQualitySelect"></select>
+              </div>
+            </div>
+            <div class="actions"><button class="button" type="submit" id="spotifyDownloadBtn">${icons.download} Convert &amp; download</button>
+              <button class="button button-secondary" type="button" id="spotifyResetBtn">Reset</button></div>
+            <p class="error-message" id="spotifyFormError" role="alert" hidden></p>
+          </form>
+          <div class="progress-card" id="spotifyDownloadProgress" hidden>
+            <div class="progress-heading"><strong>Download progress</strong><span id="spotifyDownloadState" role="status">Queued</span></div>
+            <div class="progress-track" role="progressbar" aria-label="Spotify download progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="progress-bar" id="spotifyDownloadProgressBar"></div></div>
+            <p class="progress-stats" id="spotifyDownloadStats"></p>
+          </div>
+          <p class="panel-note">spotDL matches Spotify items to audio sources, then embeds track metadata and album artwork. Higher bitrates convert the delivered file but cannot improve the source audio.</p>
+        </div></section>
+        <aside class="panel preview-panel" aria-labelledby="spotify-preview-title"><div class="panel-body">
+          <div class="preview-label"><span id="spotify-preview-title">Spotify preview</span><span>Artwork and metadata</span></div>
+          <div class="preview-frame"><img id="spotifyPreviewThumb" src="" alt="Spotify album or playlist artwork" hidden>${previewPlaceholder('music', 'Paste a Spotify link to show its artwork and details.')}</div>
+          <p class="file-meta" id="spotifyPreviewMetadata">Metadata and cover art are embedded in supported audio formats.</p>
+        </div></aside>
+      </div>
+    </section>`;
+
+  const pageForPath = (path) => ({ '/image': 'image', '/video': 'video', '/youtube': 'youtube', '/spotify': 'spotify' }[path] || 'home');
 
   const updateNavigation = (view) => {
     document.querySelectorAll('[data-view]').forEach((link) => link.classList.toggle('is-active', link.dataset.view === view));
@@ -184,13 +229,13 @@
 
   const render = () => {
     const view = pageForPath(window.location.pathname);
-    const accents = { home: 'var(--accent)', image: 'var(--accent)', video: 'var(--success)', youtube: 'var(--danger)' };
+    const accents = { home: 'var(--accent)', image: 'var(--accent)', video: 'var(--success)', youtube: 'var(--danger)', spotify: 'var(--spotify)' };
     // The root token colours shared navigation as well as the newly rendered view.
     document.body.style.setProperty('--page-accent-color', accents[view]);
-    document.title = ({ home: 'Converter — File conversion made simple', image: 'Image converter — Converter', video: 'Video & audio converter — Converter', youtube: 'YouTube downloader — Converter' })[view];
-    app.innerHTML = ({ home: homeView, image: imageView, video: videoView, youtube: youtubeView })[view]();
+    document.title = ({ home: 'Converter — File conversion made simple', image: 'Image converter — Converter', video: 'Video & audio converter — Converter', youtube: 'YouTube downloader — Converter', spotify: 'Spotify downloader — Converter' })[view];
+    app.innerHTML = ({ home: homeView, image: imageView, video: videoView, youtube: youtubeView, spotify: spotifyView })[view]();
     updateNavigation(view);
-    ({ image: bindImageView, video: bindVideoView, youtube: bindYoutubeView }[view] || (() => {}))();
+    ({ image: bindImageView, video: bindVideoView, youtube: bindYoutubeView, spotify: bindSpotifyView }[view] || (() => {}))();
   };
 
   // Preserve the filename suggested by Python when saving a fetch response as a browser download.
@@ -430,6 +475,128 @@
       form.reset();
       updateQualityOptions();
       updateThumbnail();
+      stopPolling();
+      progress.hidden = true;
+      error.hidden = true;
+      setProgress(0, 'Queued', '');
+    });
+    updateQualityOptions();
+  };
+
+  const bindSpotifyView = () => {
+    const form = document.getElementById('spotifyForm');
+    const urlInput = document.getElementById('spotifyUrlInput');
+    const format = document.getElementById('spotifyFormatSelect');
+    const quality = document.getElementById('spotifyQualitySelect');
+    const thumbnail = document.getElementById('spotifyPreviewThumb');
+    const placeholder = document.getElementById('previewPlaceholder');
+    const metadata = document.getElementById('spotifyPreviewMetadata');
+    const button = document.getElementById('spotifyDownloadBtn');
+    const reset = document.getElementById('spotifyResetBtn');
+    const error = document.getElementById('spotifyFormError');
+    const progress = document.getElementById('spotifyDownloadProgress');
+    const progressBar = document.getElementById('spotifyDownloadProgressBar');
+    const progressTrack = progressBar.parentElement;
+    const status = document.getElementById('spotifyDownloadState');
+    const stats = document.getElementById('spotifyDownloadStats');
+    let activeJobId = null;
+    let pollTimer = null;
+    let previewSequence = 0;
+
+    const updateQualityOptions = () => {
+      const values = state.config.spotify_audio_qualities || state.config.youtube_audio_qualities;
+      quality.innerHTML = values.map((value) => `<option value="${value}" ${value === '192' ? 'selected' : ''}>${value} kbps</option>`).join('');
+    };
+
+    const setProgress = (value, label, detail) => {
+      const percent = Math.max(0, Math.min(100, Number(value) || 0));
+      progressBar.style.width = `${percent}%`;
+      progressTrack.setAttribute('aria-valuenow', String(percent));
+      status.textContent = label;
+      stats.textContent = detail;
+    };
+
+    const stopPolling = () => { if (pollTimer) window.clearTimeout(pollTimer); pollTimer = null; };
+
+    const clearPreview = () => {
+      thumbnail.removeAttribute('src');
+      thumbnail.hidden = true;
+      placeholder.hidden = false;
+      metadata.textContent = 'Metadata and cover art are embedded in supported audio formats.';
+    };
+
+    // The server proxies Spotify oEmbed so artwork and title data do not depend on browser CORS rules.
+    const updatePreview = async () => {
+      const url = urlInput.value.trim();
+      const sequence = ++previewSequence;
+      clearPreview();
+      if (!url) return;
+      try {
+        const response = await fetch(`/api/spotify/preview?url=${encodeURIComponent(url)}`);
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || 'Spotify preview details are unavailable.');
+        if (sequence !== previewSequence) return;
+        if (payload.thumbnail_url) {
+          thumbnail.src = payload.thumbnail_url;
+          thumbnail.hidden = false;
+          placeholder.hidden = true;
+        }
+        metadata.textContent = [payload.title, payload.author].filter(Boolean).join(' · ') || 'Spotify metadata will be embedded in the download.';
+      } catch (_) {
+        if (sequence === previewSequence) metadata.textContent = 'Preview details are unavailable, but the link can still be downloaded.';
+      }
+    };
+
+    const pollDownload = async (jobId) => {
+      try {
+        const response = await fetch(`/api/spotify/progress/${jobId}`);
+        const job = await response.json();
+        if (!response.ok) throw new Error(job.error || 'Unable to read download status.');
+        const detail = [`Elapsed ${Math.floor(job.elapsed / 60)}m ${job.elapsed % 60}s`, job.speed, job.eta ? `ETA ${job.eta}` : ''].filter(Boolean).join(' · ');
+        setProgress(job.progress, job.state, detail);
+        if (job.state === 'completed') {
+          activeJobId = null;
+          window.location.assign(`/api/spotify/result/${jobId}`);
+          return;
+        }
+        if (job.state === 'failed') throw new Error(job.error || 'Download failed.');
+        pollTimer = window.setTimeout(() => pollDownload(jobId), 500);
+      } catch (requestError) {
+        error.textContent = requestError.message;
+        error.hidden = false;
+        button.disabled = false;
+        activeJobId = null;
+      }
+    };
+
+    format.addEventListener('change', updateQualityOptions);
+    urlInput.addEventListener('input', updatePreview);
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (activeJobId) return;
+      stopPolling();
+      error.hidden = true;
+      progress.hidden = false;
+      button.disabled = true;
+      setProgress(0, 'Starting', 'Preparing your Spotify download…');
+      try {
+        const response = await fetch('/api/spotify/download', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(new FormData(form)) });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || 'Unable to start download.');
+        activeJobId = payload.job_id;
+        pollDownload(activeJobId);
+      } catch (requestError) {
+        progress.hidden = true;
+        error.textContent = requestError.message;
+        error.hidden = false;
+        button.disabled = false;
+      }
+    });
+    reset.addEventListener('click', () => {
+      if (activeJobId) return;
+      form.reset();
+      updateQualityOptions();
+      clearPreview();
       stopPolling();
       progress.hidden = true;
       error.hidden = true;

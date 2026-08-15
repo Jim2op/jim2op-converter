@@ -1,8 +1,8 @@
 # Converter
 
-Converter is a **Node.js web application** with a static JavaScript frontend. The Node service manages file-conversion APIs, while a small local Python worker uses **yt-dlp** for YouTube download jobs. Flask is not used.
+Converter is a **Node.js web application** with a static JavaScript frontend. The Node service manages file-conversion APIs, while small local Python workers use **yt-dlp** for YouTube jobs and **spotDL** for Spotify jobs. Flask is not used.
 
-The browser interface is rendered by `static/app.js`. `server.js` serves the interface, manages conversion jobs, and starts `python/yt_dlp_worker.py` only for YouTube requests. YouTube video URLs return one media file; playlist URLs download every available item and return the completed media as a ZIP archive.
+The browser interface is rendered by `static/app.js`. `server.js` serves the interface, manages conversion jobs, and starts `python/yt_dlp_worker.py` for YouTube requests or `python/spotify_worker.py` for Spotify requests. YouTube video URLs return one media file; playlist URLs download every available item and return the completed media as a ZIP archive.
 
 ## Requirements
 
@@ -12,8 +12,9 @@ Install the following software before running the app.
 |---|---|
 | Node.js 20 or later | Runs the JavaScript server and frontend toolchain. |
 | npm | Installs JavaScript dependencies; it is installed with Node.js. |
-| Python 3.10 or later | Runs the local yt-dlp worker for YouTube download jobs. |
-| FFmpeg on the system PATH | Processes local video, GIF, audio, and yt-dlp post-processing jobs. |
+| Python 3.10 or later | Runs the local yt-dlp and spotDL download workers. |
+| FFmpeg on the system PATH | Processes local video, GIF, audio, and downloader post-processing jobs. |
+| spotDL | Resolves public Spotify tracks, albums, and playlists to matching audio and embeds tags and artwork. It is installed by `python -m pip install -r python\requirements.txt`. |
 
 ## Run locally on Windows
 
@@ -21,13 +22,13 @@ Install the following software before running the app.
 # Open the repository folder.
 cd C:\Users\Ibrah\OneDrive\Desktop\Documents\OnedriveProjects\Python\Converter
 
-# Pull the current Node.js and yt-dlp integration.
+# Pull the current Node.js, yt-dlp, and spotDL integration.
 git pull origin main
 
 # Install Node.js dependencies.
 npm install
 
-# Install the Python downloader dependency.
+# Install the Python downloader dependencies.
 python -m pip install -r python\requirements.txt
 
 # Start the Node.js development server.
@@ -65,9 +66,10 @@ npm run dev
 
 | Location | Responsibility |
 |---|---|
-| `server.js` | Express server, local file conversion, API routes, yt-dlp job management, and worker status bridge. |
+| `server.js` | Express server, local file conversion, API routes, YouTube and Spotify job management, and worker status bridges. |
 | `python/yt_dlp_worker.py` | Python yt-dlp worker with JSON progress output, playlist ZIP packaging, and safe cookie-file selection. |
-| `python/requirements.txt` | Python dependency for the yt-dlp worker. |
+| `python/spotify_worker.py` | Python spotDL worker for Spotify tracks, albums, and playlists; it emits progress, preserves metadata and album art, and archives multi-track results. |
+| `python/requirements.txt` | Python dependencies for the yt-dlp and spotDL workers. |
 | `static/index.html` | Static application shell. |
 | `static/app.js` | Client-side routes, UI state, previews, status feedback, and API requests. |
 | `static/style.css` | Shared responsive light and dark UI styling. |
@@ -76,6 +78,18 @@ npm run dev
 ## YouTube playlists
 
 Paste either a video URL or a playlist URL into the YouTube tool. The selected MP4 or audio format and quality are applied to each playlist item, and the completed items are packaged into one ZIP download so the existing single-result job API remains reliable. Playlist downloads use the same cookie and 403 recovery flow as individual videos.
+
+## Spotify downloads
+
+The **Spotify** menu accepts public `track`, `album`, and `playlist` URLs from `open.spotify.com`. It exposes the same audio formats as the YouTube tool—**MP3, WAV, OGG, and M4A**—and the same 96–320 kbps output settings. spotDL locates matching audio from supported sources and embeds Spotify-derived tags and album artwork in the output; it does not download audio directly from Spotify.[1]
+
+| Spotify link type | Result | Metadata and thumbnail handling |
+|---|---|---|
+| Track | One audio download | The file receives track metadata and embedded album art. |
+| Album | ZIP archive containing all matched tracks | Each track carries its own metadata and album art. |
+| Playlist | ZIP archive containing all matched tracks and `playlist.m3u8` | Each track receives metadata and artwork; playlist numbering is enabled. |
+
+The Spotify page fetches public oEmbed details through the local server to preview the title, author, and thumbnail before the download begins. Cookie exports remain optional, but a valid YouTube Music Netscape-format cookie export can be used for supported higher-quality source access. Only download material you have the rights or permission to download.
 
 ## Tests
 
@@ -99,3 +113,7 @@ npm run dev
 ```
 
 If the 403 response remains, export **fresh cookies** from the browser account you use for YouTube in Netscape format and save the export as `cookies\cookies.txt`. Do not copy Chrome’s internal `Cookies` database file: yt-dlp requires a Netscape-format text export. The YouTube progress panel now indicates when it cannot find a valid export.
+
+## References
+
+[1] [spotDL usage documentation](https://spotdl.github.io/spotify-downloader/usage/)
