@@ -57,3 +57,5 @@
 - The source → target → output rail is the primary visual system across hero, workbench, status, and capability areas.
 - Generated imagery is framed as labeled format artifacts and deliberately desaturated so it supports the tool rather than becoming decorative gloss.
 - The offset transfer-arrow mark is amplified in the header and footer and echoed through mono ledger codes, rails, and semantic success/boundary states.
+- Generated images are treated as desaturated, labeled file artifacts; the source → target → output rail is structural in every major section.
+- Transfer Blue remains reserved for the active conversion path, while green and coral only indicate success/privacy and local-only boundaries.
