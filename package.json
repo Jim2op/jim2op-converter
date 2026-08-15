@@ -1,0 +1,22 @@
+{
+  "name": "jim2op-converter",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A Node.js media converter with a client-side JavaScript interface.",
+  "type": "module",
+  "scripts": {
+    "dev": "nodemon server.js",
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@distube/ytdl-core": "^4.16.12",
+    "express": "^5.2.1",
+    "multer": "^2.2.0",
+    "sharp": "^0.35.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14",
+    "supertest": "^7.2.2"
+  }
+}

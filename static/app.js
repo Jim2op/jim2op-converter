@@ -74,9 +74,9 @@
           <p class="panel-kicker">Upload and convert</p><h2 class="panel-title" id="image-form-title">Set up your image conversion</h2>
           <form id="imageForm" class="api-form" enctype="multipart/form-data">
             <input type="hidden" name="source" value="image">
-            <div class="field"><label for="imageInput">Choose image files</label>
-              <input class="input" type="file" name="image" id="imageInput" accept="image/*" multiple required>
-              <span class="field-help">You can select more than one image. The first selection appears in the preview.</span>
+            <div class="field"><label for="imageInput">Choose an image</label>
+              <input class="input" type="file" name="image" id="imageInput" accept="image/*" required>
+              <span class="field-help">Select one image to preview, convert, and download.</span>
             </div>
             <div class="field-row"><div class="field"><label for="formatSelect">Output format</label>
               <select class="select" name="format" id="formatSelect">${optionList(state.config.image_formats, 'PNG')}</select>
@@ -278,7 +278,7 @@
       image.src = previewUrl;
       image.hidden = false;
       placeholder.hidden = true;
-      count.textContent = `${input.files.length} file${input.files.length === 1 ? '' : 's'} selected · ${file.name}`;
+      count.textContent = `Selected image · ${file.name}`;
     });
     form.addEventListener('submit', (event) => { event.preventDefault(); submitConversion(form, submit, error, status); });
     reset.addEventListener('click', () => { form.reset(); clearPreview(); error.hidden = true; status.hidden = true; });

@@ -1,13 +1,11 @@
-# Local credentials and secrets
 cookies/
 .env
 .env.*
 
-# Python cache and tooling output
-__pycache__/
-*.py[cod]
-.pytest_cache/
-
-# Generated converter output and local input files
+# Generated converter files and local input
 OUT/
 IN/
+
+# Node.js dependencies and local runtime files
+node_modules/
+*.log
