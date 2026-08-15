@@ -12,4 +12,4 @@
 - [x] Document deployment requirements for FFmpeg, yt-dlp, spotDL, and the Python worker runtime.
 - [x] Add Manus-app tests with fake workers for YouTube and Spotify progress, result downloads, and Spotify per-track status fields.
 - [x] Add a Manus-project deployment guide covering FFmpeg, Python, yt-dlp, spotDL, worker files, and the custom Dockerfile contract.
-- [ ] Commit and push the complete Manus web app migration to GitHub.
+- [x] Commit and push the complete Manus web app migration to GitHub.
