@@ -535,7 +535,8 @@ def convert():
                 tmp_gif.close()
 
                 try:
-                    clip.write_gif(tmp_gif_path, program='imageio', fps=min(15, clip.fps or 15))
+                    # MoviePy 2 removed the legacy `program` keyword; it now selects ffmpeg internally.
+                    clip.write_gif(tmp_gif_path, fps=min(15, clip.fps or 15), logger=None)
                     with open(tmp_gif_path, 'rb') as f:
                         out_bytes.write(f.read())
                     out_bytes.seek(0)

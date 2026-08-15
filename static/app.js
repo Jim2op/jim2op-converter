@@ -56,6 +56,13 @@
       <span>${label}</span>
     </div>`;
 
+  const conversionStatus = () => `
+    <div class="conversion-status" id="conversionStatus" role="status" aria-live="polite" hidden>
+      <span class="status-spinner" aria-hidden="true"></span>
+      <div class="status-copy"><strong id="conversionStatusTitle">Preparing conversion</strong><span id="conversionStatusDetail">Waiting for the selected file.</span></div>
+      <div class="status-track" aria-hidden="true"></div>
+    </div>`;
+
   const imageView = () => `
     <section class="page-shell container" style="--page-accent-color: var(--accent);">
       <div class="page-heading">
@@ -79,6 +86,7 @@
             <div class="actions"><button class="button" type="submit">${icons.download} Convert &amp; download</button>
               <button class="button button-secondary" type="button" id="resetBtn">Reset</button></div>
             <p class="error-message" id="formError" role="alert" hidden></p>
+            ${conversionStatus()}
           </form>
           <p class="panel-note">Supported formats: ${state.config.image_formats.map(escapeHtml).join(', ')}. Auto mode chooses a compatible color mode for the image and output format.</p>
         </div></section>
@@ -113,6 +121,7 @@
             <div class="actions"><button class="button" type="submit">${icons.download} Convert &amp; download</button>
               <button class="button button-secondary" type="button" id="resetBtn">Reset</button></div>
             <p class="error-message" id="formError" role="alert" hidden></p>
+            ${conversionStatus()}
           </form>
           <p class="panel-note">GIF output can be larger than the original file. Audio output preserves the sound track and omits the video.</p>
         </div></section>
@@ -208,22 +217,35 @@
     }
   };
 
-  const submitConversion = async (form, button, errorElement) => {
+  const setConversionStatus = (element, title, detail) => {
+    element.hidden = false;
+    element.querySelector('#conversionStatusTitle').textContent = title;
+    element.querySelector('#conversionStatusDetail').textContent = detail;
+  };
+
+  const submitConversion = async (form, button, errorElement, statusElement) => {
     errorElement.hidden = true;
+    setConversionStatus(statusElement, 'Uploading file', 'Sending your file to the Python converter…');
     button.disabled = true;
-    const originalText = button.textContent;
+    const originalMarkup = button.innerHTML;
     button.textContent = 'Converting…';
+    // The server returns a file response, not percentage events, so show honest indeterminate progress.
+    const workingTimer = window.setTimeout(() => setConversionStatus(statusElement, 'Converting in progress', 'Python is processing your file. Larger videos may take a few minutes.'), 900);
+    const finalizingTimer = window.setTimeout(() => setConversionStatus(statusElement, 'Finalizing output', 'Preparing your converted file for download…'), 4200);
     try {
       const response = await fetch('/api/convert', { method: 'POST', body: new FormData(form) });
       if (!response.ok) throw new Error(await apiError(response));
+      setConversionStatus(statusElement, 'Conversion complete', 'Your download has started.');
       await downloadResponse(response, 'converted-file');
     } catch (error) {
+      statusElement.hidden = true;
       errorElement.textContent = error.message;
       errorElement.hidden = false;
     } finally {
+      window.clearTimeout(workingTimer);
+      window.clearTimeout(finalizingTimer);
       button.disabled = false;
-      button.textContent = originalText;
-      button.prepend(document.createRange().createContextualFragment(icons.download));
+      button.innerHTML = originalMarkup;
     }
   };
 
@@ -235,6 +257,7 @@
     const count = document.getElementById('selectedCount');
     const reset = document.getElementById('resetBtn');
     const error = document.getElementById('formError');
+    const status = document.getElementById('conversionStatus');
     const submit = form.querySelector('[type="submit"]');
     let previewUrl = null;
 
@@ -257,8 +280,8 @@
       placeholder.hidden = true;
       count.textContent = `${input.files.length} file${input.files.length === 1 ? '' : 's'} selected · ${file.name}`;
     });
-    form.addEventListener('submit', (event) => { event.preventDefault(); submitConversion(form, submit, error); });
-    reset.addEventListener('click', () => { form.reset(); clearPreview(); error.hidden = true; });
+    form.addEventListener('submit', (event) => { event.preventDefault(); submitConversion(form, submit, error, status); });
+    reset.addEventListener('click', () => { form.reset(); clearPreview(); error.hidden = true; status.hidden = true; });
   };
 
   const bindVideoView = () => {
@@ -269,6 +292,7 @@
     const metadata = document.getElementById('selectedFile');
     const reset = document.getElementById('resetBtn');
     const error = document.getElementById('formError');
+    const status = document.getElementById('conversionStatus');
     const submit = form.querySelector('[type="submit"]');
     let previewUrl = null;
 
@@ -294,8 +318,8 @@
       video.load();
       metadata.textContent = `${file.name} · ${(file.size / (1024 * 1024)).toFixed(1)} MB`;
     });
-    form.addEventListener('submit', (event) => { event.preventDefault(); submitConversion(form, submit, error); });
-    reset.addEventListener('click', () => { form.reset(); clearPreview(); error.hidden = true; });
+    form.addEventListener('submit', (event) => { event.preventDefault(); submitConversion(form, submit, error, status); });
+    reset.addEventListener('click', () => { form.reset(); clearPreview(); error.hidden = true; status.hidden = true; });
   };
 
   const bindYoutubeView = () => {
