@@ -31,5 +31,9 @@ else:
 
 # These records mirror the real worker so the Node bridge can be tested deterministically.
 print(json.dumps({"event": "started", "cookies_configured": False}), flush=True)
-print(json.dumps({"event": "progress", "state": "downloading", "progress": 48, "speed": 1024, "eta": 1}), flush=True)
-print(json.dumps({"event": "complete", "path": str(output_path), "filename": filename, "mimetype": mimetype, "archive": archive}), flush=True)
+if args.kind == "playlist":
+    print(json.dumps({"event": "progress", "state": "downloading", "progress": 36, "completed": 1, "total": 3, "current_item": "Track 1 — Fixture song", "message": "Downloading track 2 of 3"}), flush=True)
+    print(json.dumps({"event": "progress", "state": "downloading", "progress": 72, "completed": 2, "total": 3, "current_item": "Track 2 — Fixture song", "message": "Downloading track 3 of 3"}), flush=True)
+else:
+    print(json.dumps({"event": "progress", "state": "downloading", "progress": 48, "completed": 0, "total": 1, "current_item": "Fixture song", "message": "Downloading track 1 of 1"}), flush=True)
+print(json.dumps({"event": "complete", "path": str(output_path), "filename": filename, "mimetype": mimetype, "archive": archive, "completed": 3 if args.kind == "playlist" else 1, "total": 3 if args.kind == "playlist" else 1, "message": "Playlist archive is ready" if archive else "Audio file is ready"}), flush=True)

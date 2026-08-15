@@ -557,6 +557,7 @@ a { color: inherit; text-decoration: none; }
 }
 
 .progress-stats { min-height: 1.2rem; margin: 0.65rem 0 0; color: var(--app-muted); font-size: 0.8rem; }
+.progress-current { min-height: 1.2rem; margin: 0.35rem 0 0; color: var(--app-text); font-size: 0.82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .error-message { margin: 0.75rem 0 0; color: var(--danger); font-size: 0.84rem; }
 
 .site-footer {

@@ -123,6 +123,10 @@ function publicJob(job) {
     elapsed: Math.max(0, Math.floor((Date.now() - job.startedAt) / 1000)),
     error: job.error || null,
     cookiesIssue: job.cookiesIssue || null,
+    completedItems: Number.isFinite(job.completedItems) ? job.completedItems : 0,
+    totalItems: Number.isFinite(job.totalItems) ? job.totalItems : null,
+    currentItem: job.currentItem || null,
+    message: job.message || null,
   };
 }
 
@@ -165,7 +169,7 @@ function processSpotifyJob(jobId, url, kind, format, quality, runtime) {
   let stdoutBuffer = '';
   let stderr = '';
 
-  // The Spotify worker mirrors the YouTube JSON protocol so the browser can use the same polling model.
+  // The Spotify worker mirrors the YouTube JSON protocol and adds item counts for playlist status updates.
   const handleMessage = (line) => {
     if (!line.trim()) return;
     try {
@@ -177,13 +181,26 @@ function processSpotifyJob(jobId, url, kind, format, quality, runtime) {
           cookiesIssue: message.cookies_issue || null,
         });
       } else if (message.event === 'progress') {
-        writeJob(job, { state: message.state || 'downloading', progress: message.progress || 0, speed: message.speed, eta: message.eta });
+        writeJob(job, {
+          state: message.state || 'downloading',
+          progress: message.progress || 0,
+          speed: message.speed,
+          eta: message.eta,
+          completedItems: Number.isFinite(message.completed) ? message.completed : job.completedItems,
+          totalItems: Number.isFinite(message.total) ? message.total : job.totalItems,
+          currentItem: message.current_item || job.currentItem,
+          message: message.message || job.message,
+        });
       } else if (message.event === 'complete') {
         writeJob(job, {
           state: 'completed', progress: 100, outputPath: message.path,
           filename: message.filename || `spotify.${extensionFor(format)}`,
           mimetype: message.mimetype || MIME_TYPES[format],
           archive: Boolean(message.archive),
+          completedItems: Number.isFinite(message.completed) ? message.completed : job.completedItems,
+          totalItems: Number.isFinite(message.total) ? message.total : job.totalItems,
+          currentItem: null,
+          message: message.archive ? 'Playlist archive is ready' : 'Audio file is ready',
         });
       } else if (message.event === 'error') {
         writeJob(job, { state: 'failed', error: message.error || 'spotDL could not complete the download.' });

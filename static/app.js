@@ -210,6 +210,7 @@
             <div class="progress-heading"><strong>Download progress</strong><span id="spotifyDownloadState" role="status">Queued</span></div>
             <div class="progress-track" role="progressbar" aria-label="Spotify download progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="progress-bar" id="spotifyDownloadProgressBar"></div></div>
             <p class="progress-stats" id="spotifyDownloadStats"></p>
+            <p class="progress-current" id="spotifyCurrentItem" role="status" aria-live="polite">Preparing Spotify download…</p>
           </div>
           <p class="panel-note">spotDL matches Spotify items to audio sources, then embeds track metadata and album artwork. Higher bitrates convert the delivered file but cannot improve the source audio.</p>
         </div></section>
@@ -499,6 +500,7 @@
     const progressTrack = progressBar.parentElement;
     const status = document.getElementById('spotifyDownloadState');
     const stats = document.getElementById('spotifyDownloadStats');
+    const currentItem = document.getElementById('spotifyCurrentItem');
     let activeJobId = null;
     let pollTimer = null;
     let previewSequence = 0;
@@ -552,7 +554,9 @@
         const response = await fetch(`/api/spotify/progress/${jobId}`);
         const job = await response.json();
         if (!response.ok) throw new Error(job.error || 'Unable to read download status.');
-        const detail = [`Elapsed ${Math.floor(job.elapsed / 60)}m ${job.elapsed % 60}s`, job.speed, job.eta ? `ETA ${job.eta}` : ''].filter(Boolean).join(' · ');
+        const itemCount = job.totalItems ? `Track ${job.completedItems || 0} of ${job.totalItems}` : '';
+        const detail = [job.message, itemCount, `Elapsed ${Math.floor(job.elapsed / 60)}m ${job.elapsed % 60}s`, job.speed, job.eta ? `ETA ${job.eta}` : ''].filter(Boolean).join(' · ');
+        currentItem.textContent = job.currentItem || job.message || 'Preparing Spotify download…';
         setProgress(job.progress, job.state, detail);
         if (job.state === 'completed') {
           activeJobId = null;
@@ -578,6 +582,7 @@
       error.hidden = true;
       progress.hidden = false;
       button.disabled = true;
+      currentItem.textContent = 'Preparing Spotify download…';
       setProgress(0, 'Starting', 'Preparing your Spotify download…');
       try {
         const response = await fetch('/api/spotify/download', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(new FormData(form)) });
@@ -600,6 +605,7 @@
       stopPolling();
       progress.hidden = true;
       error.hidden = true;
+      currentItem.textContent = 'Preparing Spotify download…';
       setProgress(0, 'Queued', '');
     });
     updateQualityOptions();

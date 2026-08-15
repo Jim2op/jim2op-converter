@@ -129,6 +129,8 @@ test('the Node bridge returns a metadata-ready Spotify track download', async ()
   const progress = await waitForCompletion(spotifyApp, '/api/spotify/progress', start.body.job_id);
   assert.equal(progress.status, 200);
   assert.equal(progress.body.state, 'completed');
+  assert.equal(progress.body.completedItems, 1);
+  assert.equal(progress.body.totalItems, 1);
 
   const result = await request(spotifyApp).get(`/api/spotify/result/${start.body.job_id}`);
   assert.equal(result.status, 200);
@@ -147,6 +149,9 @@ test('the Node bridge returns Spotify playlists as a ZIP archive', async () => {
   const progress = await waitForCompletion(spotifyApp, '/api/spotify/progress', start.body.job_id);
   assert.equal(progress.status, 200);
   assert.equal(progress.body.state, 'completed');
+  assert.equal(progress.body.completedItems, 3);
+  assert.equal(progress.body.totalItems, 3);
+  assert.equal(progress.body.message, 'Playlist archive is ready');
 
   const result = await request(spotifyApp).get(`/api/spotify/result/${start.body.job_id}`);
   assert.equal(result.status, 200);

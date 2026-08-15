@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 AUDIO_EXTENSIONS = {".mp3", ".wav", ".ogg", ".m4a"}
+ITEM_PROGRESS_PATTERN = re.compile(r"(?:track|song)?\s*#?\s*(\d+)\s*(?:/|of)\s*(\d+)", re.IGNORECASE)
 
 
 def emit(payload: dict[str, Any]) -> None:
@@ -76,7 +77,7 @@ def build_command(args: argparse.Namespace, cookie_file: Path | None) -> list[st
         "--overwrite",
         "force",
         "--log-level",
-        "ERROR",
+        "INFO",
         "--print-errors",
     ]
     # spotDL embeds the track metadata and album cover unless --skip-album-art is supplied; do not disable it.
@@ -95,20 +96,76 @@ def audio_outputs(output_directory: Path) -> list[Path]:
     )
 
 
-def progress_from_output(line: str, completed: int) -> tuple[int, str, int]:
-    """Convert human-readable spotDL output into conservative progress updates."""
-    compact = line.strip()
+def progress_from_output(
+    line: str,
+    completed: int,
+    total: int | None = None,
+    observed_files: int | None = None,
+) -> tuple[dict[str, Any], int, int | None]:
+    """Convert spotDL output into an event with optional playlist item counts and status text."""
+    compact = " ".join(line.strip().split())
     lower = compact.lower()
+    match = ITEM_PROGRESS_PATTERN.search(compact)
+    if match:
+        current = int(match.group(1))
+        total = int(match.group(2))
+        completed = max(completed, current - 1)
+        progress = round(10 + (current / max(total, 1)) * 80, 1)
+        return {
+            "progress": min(90, progress),
+            "state": "downloading",
+            "completed": completed,
+            "total": total,
+            "current_item": compact[:160],
+            "message": f"Downloading track {current} of {total}",
+        }, completed, total
+
+    if observed_files is not None and observed_files > completed:
+        completed = observed_files
     if not compact:
-        return 10, "preparing", completed
+        return {"progress": 10, "state": "preparing", "completed": completed, "total": total}, completed, total
+    if re.search(r"\b(downloaded|skipping|saved|finished)\b", lower):
+        if observed_files is None:
+            completed += 1
+        elif observed_files > completed:
+            completed = observed_files
+        elif observed_files == completed == 0:
+            completed = 1
+        progress = min(90, 15 + completed * (75 / max(total or completed, 1)))
+        return {
+            "progress": round(progress, 1),
+            "state": "downloading",
+            "completed": completed,
+            "total": total,
+            "current_item": compact[:160],
+            "message": f"Completed track {completed}" if total is None else f"Completed track {completed} of {total}",
+        }, completed, total
+    if "metadata" in lower or "embed" in lower or "convert" in lower or "tag" in lower:
+        return {
+            "progress": min(94, max(85, 85 + completed)),
+            "state": "tagging metadata",
+            "completed": completed,
+            "total": total,
+            "current_item": compact[:160],
+            "message": "Embedding metadata and album artwork",
+        }, completed, total
     if "download" in lower or "search" in lower or "match" in lower:
-        return min(88, max(15, 15 + completed * 8)), "downloading", completed
-    if "metadata" in lower or "embed" in lower or "convert" in lower:
-        return min(94, max(85, 85 + completed)), "tagging metadata", completed
-    if re.search(r"\b(downloaded|skipping)\b", lower):
-        completed += 1
-        return min(94, 25 + completed * 8), "downloading", completed
-    return min(90, max(12, 12 + completed * 8)), "downloading", completed
+        return {
+            "progress": min(88, max(15, 15 + completed * 8)),
+            "state": "downloading",
+            "completed": completed,
+            "total": total,
+            "current_item": compact[:160],
+            "message": compact[:160],
+        }, completed, total
+    return {
+        "progress": min(90, max(12, 12 + completed * 8)),
+        "state": "downloading",
+        "completed": completed,
+        "total": total,
+        "current_item": compact[:160],
+        "message": compact[:160],
+    }, completed, total
 
 
 def parse_args() -> argparse.Namespace:
@@ -128,13 +185,14 @@ def main() -> int:
     output_directory.mkdir(parents=True, exist_ok=True)
     cookie_file = find_cookie_file(args.cookies_directory)
     emit({"event": "started", "cookies_configured": bool(cookie_file), "cookies_issue": None})
-    emit({"event": "progress", "state": "preparing", "progress": 8})
+    emit({"event": "progress", "state": "preparing", "progress": 8, "completed": 0, "total": None, "message": "Preparing Spotify download"})
 
     command = build_command(args, cookie_file)
     completed = 0
+    total: int | None = None
     diagnostics: list[str] = []
     try:
-        # Pipe output so the browser receives an honest lifecycle even though spotDL has no JSON progress API.
+        # Pipe output so the browser receives item-level lifecycle updates while spotDL is running.
         process = subprocess.Popen(
             command,
             stdout=subprocess.PIPE,
@@ -145,9 +203,14 @@ def main() -> int:
         )
         assert process.stdout is not None
         for line in process.stdout:
-            progress, state, completed = progress_from_output(line, completed)
             diagnostics.append(line.strip())
-            emit({"event": "progress", "state": state, "progress": progress})
+            event, completed, total = progress_from_output(
+                line,
+                completed,
+                total,
+                observed_files=len(audio_outputs(output_directory)),
+            )
+            emit({"event": "progress", **event})
         if process.wait() != 0:
             detail = next((line for line in reversed(diagnostics) if line), "spotDL could not complete the download.")
             raise RuntimeError(detail)
@@ -155,6 +218,9 @@ def main() -> int:
         files = audio_outputs(output_directory)
         if not files:
             raise RuntimeError("spotDL completed without producing an audio file.")
+        completed = max(completed, len(files))
+        total = max(total or 0, completed) or None
+        emit({"event": "progress", "state": "finalizing", "progress": 96, "completed": completed, "total": total, "message": "Preparing your download"})
         if args.kind == "track" and len(files) == 1:
             output_path = files[0]
             emit({
@@ -163,6 +229,8 @@ def main() -> int:
                 "filename": output_path.name,
                 "mimetype": {"MP3": "audio/mpeg", "WAV": "audio/wav", "OGG": "audio/ogg", "M4A": "audio/mp4"}[args.format],
                 "archive": False,
+                "completed": completed,
+                "total": total,
             })
         else:
             # Playlist and album requests download multiple tracks, so deliver one portable archive plus its M3U file.
@@ -173,6 +241,8 @@ def main() -> int:
                 "filename": "spotify-playlist.zip" if args.kind == "playlist" else "spotify-album.zip",
                 "mimetype": "application/zip",
                 "archive": True,
+                "completed": completed,
+                "total": total,
             })
         return 0
     except Exception as error:  # Provider and FFmpeg errors vary by system and are safe to relay as a job failure.

@@ -89,7 +89,7 @@ The **Spotify** menu accepts public `track`, `album`, and `playlist` URLs from `
 | Album | ZIP archive containing all matched tracks | Each track carries its own metadata and album art. |
 | Playlist | ZIP archive containing all matched tracks and `playlist.m3u8` | Each track receives metadata and artwork; playlist numbering is enabled. |
 
-The Spotify page fetches public oEmbed details through the local server to preview the title, author, and thumbnail before the download begins. Cookie exports remain optional, but a valid YouTube Music Netscape-format cookie export can be used for supported higher-quality source access. Only download material you have the rights or permission to download.
+The Spotify page fetches public oEmbed details through the local server to preview the title, author, and thumbnail before the download begins. While a playlist is active, the worker emits item-level progress events; the page shows the current track, completed-track count, total-track count, elapsed time, and final archive preparation status in real time. Cookie exports remain optional, but a valid YouTube Music Netscape-format cookie export can be used for supported higher-quality source access. Only download material you have the rights or permission to download.
 
 ## Tests
 
@@ -97,6 +97,7 @@ Run the JavaScript test suite with:
 
 ```powershell
 npm test
+python -m unittest discover -s test -p "spotify_worker_test.py"
 ```
 
 ## Access from another device
