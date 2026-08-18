@@ -1,0 +1,6 @@
+target/
+.arcforge-launcher/
+*.log
+
+# Local settings may contain user-provided provider API keys.
+preferences.json
