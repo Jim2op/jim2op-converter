@@ -1,4 +1,8 @@
 import express from "express";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { promises as fs } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -8,6 +12,7 @@ let baseUrl = "";
 let stopServer: (() => Promise<void>) | undefined;
 let workerBaseUrl = "";
 let stopWorkerServer: (() => Promise<void>) | undefined;
+const execFileAsync = promisify(execFile);
 
 beforeAll(async () => {
   const app = express();
@@ -83,6 +88,28 @@ describe("Manus media route contract", () => {
     expect(response.headers.get("content-type")).toContain("image/jpeg");
     expect(response.headers.get("content-disposition")).toContain("fixture.jpg");
     expect((await response.arrayBuffer()).byteLength).toBeGreaterThan(0);
+  });
+
+  it("converts multiple uploaded videos into one ZIP attachment", async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "converter-batch-test-"));
+    try {
+      const firstVideo = path.join(directory, "first.mp4");
+      const secondVideo = path.join(directory, "second.mp4");
+      await execFileAsync("ffmpeg", ["-y", "-f", "lavfi", "-i", "color=c=red:s=16x16:d=0.1", "-c:v", "libx264", "-pix_fmt", "yuv420p", firstVideo]);
+      await execFileAsync("ffmpeg", ["-y", "-f", "lavfi", "-i", "color=c=blue:s=16x16:d=0.1", "-c:v", "libx264", "-pix_fmt", "yuv420p", secondVideo]);
+      const form = new FormData();
+      form.append("format", "GIF");
+      form.append("image", new Blob([await fs.readFile(firstVideo)], { type: "video/mp4" }), "first.mp4");
+      form.append("image", new Blob([await fs.readFile(secondVideo)], { type: "video/mp4" }), "second.mp4");
+      const response = await fetch(`${baseUrl}/api/convert`, { method: "POST", body: form });
+      const responseBody = await response.arrayBuffer();
+      expect(response.status, Buffer.from(responseBody).toString("utf8")).toBe(200);
+      expect(response.headers.get("content-type")).toContain("application/zip");
+      expect(response.headers.get("content-disposition")).toContain("converted-videos.zip");
+      const archive = Buffer.from(responseBody).toString("latin1");
+      expect(archive).toContain("01-first.gif");
+      expect(archive).toContain("02-second.gif");
+    } finally { await fs.rm(directory, { recursive: true, force: true }); }
   });
 
   it("polls a YouTube worker job and serves its completed result", async () => {

@@ -3,7 +3,7 @@ import multer from "multer";
 import sharp from "sharp";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { promises as fs } from "node:fs";
+import { createWriteStream, promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -21,6 +21,13 @@ const MIME_TYPES: Record<string, string> = {
   PNG: "image/png", JPEG: "image/jpeg", WEBP: "image/webp", BMP: "image/bmp", TIFF: "image/tiff", GIF: "image/gif", AVIF: "image/avif",
   MP3: "audio/mpeg", WAV: "audio/wav", OGG: "audio/ogg", M4A: "audio/mp4", MP4: "video/mp4",
 };
+type ZipArchiveInstance = {
+  on: (event: string, handler: (error: Error) => void) => void;
+  pipe: (output: ReturnType<typeof createWriteStream>) => void;
+  file: (source: string, options: { name: string }) => void;
+  finalize: () => Promise<void>;
+};
+type ZipArchiveConstructor = new (options: { zlib: { level: number } }) => ZipArchiveInstance;
 
 type DownloadJob = {
   state: string;
@@ -100,19 +107,53 @@ async function convertImage(file: Express.Multer.File, format: string) {
   return { buffer, filename: `${safeName(file.originalname)}.${extensionFor(format)}`, mimetype: MIME_TYPES[format] };
 }
 
+async function convertVideoToPath(file: Express.Multer.File, format: string, outputPath: string) {
+  if (format === "GIF") await runFfmpeg(["-y", "-i", file.path, "-vf", "fps=15,scale=iw:-2:flags=lanczos", outputPath]);
+  else if (format === "MP3") await runFfmpeg(["-y", "-i", file.path, "-vn", "-c:a", "libmp3lame", "-q:a", "2", outputPath]);
+  else if (format === "WAV") await runFfmpeg(["-y", "-i", file.path, "-vn", "-c:a", "pcm_s16le", outputPath]);
+  else if (format === "OGG") await runFfmpeg(["-y", "-i", file.path, "-vn", "-c:a", "libvorbis", outputPath]);
+  else if (format === "M4A") await runFfmpeg(["-y", "-i", file.path, "-vn", "-c:a", "aac", "-b:a", "192k", outputPath]);
+  else throw new Error("Video input can only be converted to GIF or extracted as MP3, WAV, OGG, or M4A.");
+}
+
+async function createZipArchive(outputPath: string, files: Array<{ source: string; name: string }>) {
+  const { ZipArchive } = await import("archiver") as unknown as { ZipArchive: ZipArchiveConstructor };
+  return new Promise<void>((resolve, reject) => {
+    const output = createWriteStream(outputPath);
+    const archive = new ZipArchive({ zlib: { level: 9 } });
+    output.on("close", resolve);
+    output.on("error", reject);
+    archive.on("error", reject);
+    archive.pipe(output);
+    files.forEach(file => archive.file(file.source, { name: file.name }));
+    void archive.finalize();
+  });
+}
+
 async function convertVideo(file: Express.Multer.File, format: string) {
   const outputPath = path.join(WORK_DIRECTORY, `${randomUUID()}.${extensionFor(format)}`);
   try {
-    if (format === "GIF") await runFfmpeg(["-y", "-i", file.path, "-vf", "fps=15,scale=iw:-2:flags=lanczos", outputPath]);
-    else if (format === "MP3") await runFfmpeg(["-y", "-i", file.path, "-vn", "-c:a", "libmp3lame", "-q:a", "2", outputPath]);
-    else if (format === "WAV") await runFfmpeg(["-y", "-i", file.path, "-vn", "-c:a", "pcm_s16le", outputPath]);
-    else if (format === "OGG") await runFfmpeg(["-y", "-i", file.path, "-vn", "-c:a", "libvorbis", outputPath]);
-    else if (format === "M4A") await runFfmpeg(["-y", "-i", file.path, "-vn", "-c:a", "aac", "-b:a", "192k", outputPath]);
-    else throw new Error("Video input can only be converted to GIF or extracted as MP3, WAV, OGG, or M4A.");
+    await convertVideoToPath(file, format, outputPath);
     return { buffer: await fs.readFile(outputPath), filename: `${safeName(file.originalname)}.${extensionFor(format)}`, mimetype: MIME_TYPES[format] };
-  } finally {
-    await removeFiles([file.path, outputPath]);
-  }
+  } finally { await removeFiles([file.path, outputPath]); }
+}
+
+async function convertVideoBatch(files: Express.Multer.File[], format: string) {
+  const batchDirectory = path.join(WORK_DIRECTORY, `batch-${randomUUID()}`);
+  const archivePath = `${batchDirectory}.zip`;
+  try {
+    await fs.mkdir(batchDirectory, { recursive: true });
+    const outputs: Array<{ source: string; name: string }> = [];
+    for (let index = 0; index < files.length; index += 1) {
+      const file = files[index]!;
+      const filename = `${String(index + 1).padStart(2, "0")}-${safeName(file.originalname)}.${extensionFor(format)}`;
+      const outputPath = path.join(batchDirectory, filename);
+      await convertVideoToPath(file, format, outputPath);
+      outputs.push({ source: outputPath, name: filename });
+    }
+    await createZipArchive(archivePath, outputs);
+    return { buffer: await fs.readFile(archivePath), filename: "converted-videos.zip", mimetype: "application/zip" };
+  } finally { await removeFiles([...files.map(file => file.path), batchDirectory, archivePath]); }
 }
 
 function publicJob(job: DownloadJob) {
@@ -215,13 +256,17 @@ export async function registerMediaRoutes(app: Express, options: MediaRouteOptio
 
   app.post("/api/convert", upload.array("image", 10), async (request: Request, response: Response) => {
     const files = (request.files || []) as Express.Multer.File[];
-    const file = files[0];
     const format = String(request.body.format || "PNG").toUpperCase();
     try {
-      if (!file) throw new Error("No file was uploaded.");
+      if (files.length === 0) throw new Error("No file was uploaded.");
+      const file = files[0];
       const extension = path.extname(file.originalname).toLowerCase();
       let result: { buffer: Buffer; filename: string; mimetype: string };
-      if (IMAGE_EXTENSIONS.has(extension)) {
+      if (files.length > 1) {
+        if (!files.every(entry => VIDEO_EXTENSIONS.has(path.extname(entry.originalname).toLowerCase()))) throw new Error("Batch conversion accepts video files only.");
+        if (!VIDEO_FORMATS.has(format)) throw new Error("Videos can only be converted to GIF or extracted as audio.");
+        result = await convertVideoBatch(files, format);
+      } else if (IMAGE_EXTENSIONS.has(extension)) {
         if (!IMAGE_FORMATS.includes(format as (typeof IMAGE_FORMATS)[number])) throw new Error("Unsupported image output format.");
         result = await convertImage(file, format);
         await removeFiles(files.map(entry => entry.path));
