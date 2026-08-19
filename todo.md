@@ -18,4 +18,4 @@
 - [x] Apply the compact three-per-row layout to relevant converter form-control groups as well as the home tool cards.
 - [x] Remove excess descriptive copy beneath the tool-page headers while preserving the header hierarchy.
 - [x] Enable selecting and converting multiple video files in one request, with a batch download result and clear status feedback.
-- [ ] Commit the validated batch-video update to GitHub.
+- [x] Commit the validated batch-video update to GitHub.
