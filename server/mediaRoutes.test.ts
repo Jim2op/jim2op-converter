@@ -12,6 +12,8 @@ let baseUrl = "";
 let stopServer: (() => Promise<void>) | undefined;
 let workerBaseUrl = "";
 let stopWorkerServer: (() => Promise<void>) | undefined;
+let brokenWorkerBaseUrl = "";
+let stopBrokenWorkerServer: (() => Promise<void>) | undefined;
 const execFileAsync = promisify(execFile);
 
 beforeAll(async () => {
@@ -38,14 +40,26 @@ beforeAll(async () => {
   if (!workerAddress || typeof workerAddress === "string") throw new Error("Could not bind worker test server.");
   workerBaseUrl = `http://127.0.0.1:${workerAddress.port}`;
   stopWorkerServer = () => new Promise(resolve => workerServer.close(() => resolve()));
+
+  const brokenWorkerApp = express();
+  brokenWorkerApp.use(express.json());
+  brokenWorkerApp.use(express.urlencoded({ extended: true }));
+  await registerMediaRoutes(brokenWorkerApp, { workerDirectory: path.join(process.cwd(), "test", "failure-fixtures") });
+  const brokenWorkerServer = await new Promise<ReturnType<typeof brokenWorkerApp.listen>>(resolve => {
+    const listener = brokenWorkerApp.listen(0, "127.0.0.1", () => resolve(listener));
+  });
+  const brokenWorkerAddress = brokenWorkerServer.address();
+  if (!brokenWorkerAddress || typeof brokenWorkerAddress === "string") throw new Error("Could not bind failing worker test server.");
+  brokenWorkerBaseUrl = `http://127.0.0.1:${brokenWorkerAddress.port}`;
+  stopBrokenWorkerServer = () => new Promise(resolve => brokenWorkerServer.close(() => resolve()));
 });
 
-afterAll(async () => { await stopServer?.(); await stopWorkerServer?.(); });
+afterAll(async () => { await stopServer?.(); await stopWorkerServer?.(); await stopBrokenWorkerServer?.(); });
 
-async function waitForCompletion(endpoint: string, jobId: string) {
+async function waitForCompletion(endpoint: string, jobId: string, serverUrl = workerBaseUrl) {
   let payload: Record<string, unknown> = {};
   for (let attempt = 0; attempt < 50; attempt += 1) {
-    const response = await fetch(`${workerBaseUrl}${endpoint}/${jobId}`);
+    const response = await fetch(`${serverUrl}${endpoint}/${jobId}`);
     payload = await response.json() as Record<string, unknown>;
     if (payload.state === "completed" || payload.state === "failed") return payload;
     await new Promise(resolve => setTimeout(resolve, 15));
@@ -146,6 +160,20 @@ describe("Manus media route contract", () => {
     expect(sawLiveItem).toBe(true);
     const result = await fetch(`${workerBaseUrl}/api/spotify/result/${started.job_id}`);
     expect(result.headers.get("content-type")).toContain("application/zip");
-    expect((await result.arrayBuffer()).byteLength).toBeGreaterThan(0);
+    const archive = Buffer.from(await result.arrayBuffer()).toString("latin1");
+    expect(archive).toContain("01 - Fixture song.m4a");
+    expect(archive).toContain("playlist.m3u8");
+  });
+
+  it("reproduces the legacy Spotify playlist archive failure with its explicit job error", async () => {
+    const start = await fetch(`${brokenWorkerBaseUrl}/api/spotify/download`, {
+      method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: "spotify_url=https%3A%2F%2Fopen.spotify.com%2Fplaylist%2Ffixture&format=M4A&quality=256",
+    });
+    const started = await start.json() as { job_id: string };
+    const progress = await waitForCompletion("/api/spotify/progress", started.job_id, brokenWorkerBaseUrl);
+    expect(progress).toMatchObject({ state: "failed", error: "Legacy playlist archive contains temporary M3U paths and cannot be used after download." });
+    const result = await fetch(`${brokenWorkerBaseUrl}/api/spotify/result/${started.job_id}`);
+    expect(result.status).toBe(409);
   });
 });

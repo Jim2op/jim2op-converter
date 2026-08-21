@@ -5,9 +5,9 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import shutil
 import subprocess
 import sys
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -58,15 +58,18 @@ def find_cookie_file(cookies_directory: str | None) -> Path | None:
 def build_command(args: argparse.Namespace, cookie_file: Path | None) -> list[str]:
     """Build a spotDL command that preserves Spotify metadata and album artwork by default."""
     output_directory = Path(args.output_directory)
+    output_template = "{artists} - {title}.{output-ext}"
+    if args.kind == "playlist":
+        output_template = "{list-position} - {artists} - {title}.{output-ext}"
     command = [
         sys.executable, "-m", "spotdl", "download", args.url,
-        "--output", str(output_directory / "{artists} - {title}.{output-ext}"),
+        "--output", str(output_directory / output_template),
         "--format", args.format.lower(), "--bitrate", f"{args.quality}k",
         "--restrict", "ascii", "--overwrite", "force", "--log-level", "INFO", "--print-errors",
     ]
     # spotDL embeds metadata and cover art by default; playlist numbering is retained for archive downloads.
     if args.kind == "playlist":
-        command.extend(["--playlist-numbering", "--m3u", str(output_directory / "playlist.m3u8")])
+        command.append("--playlist-numbering")
     if cookie_file:
         command.extend(["--cookie-file", str(cookie_file)])
     return command
@@ -75,6 +78,28 @@ def build_command(args: argparse.Namespace, cookie_file: Path | None) -> list[st
 def audio_outputs(output_directory: Path) -> list[Path]:
     """Return completed audio assets while excluding logs and playlist manifests."""
     return sorted(path for path in output_directory.rglob("*") if path.is_file() and path.suffix.lower() in AUDIO_EXTENSIONS)
+
+
+def create_download_archive(output_directory: Path, files: list[Path]) -> Path:
+    """Archive only completed audio and create an M3U that remains valid after the ZIP is extracted."""
+    archive_path = output_directory / "spotify-download.zip"
+    archive_entries: list[str] = []
+    with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for file in files:
+            try:
+                entry_name = str(file.relative_to(output_directory))
+            except ValueError:
+                entry_name = file.name
+            archive.write(file, entry_name)
+            archive_entries.append(entry_name)
+        archive.writestr("playlist.m3u8", "#EXTM3U\n" + "\n".join(archive_entries) + "\n")
+    return archive_path
+
+
+def friendly_failure(diagnostics: list[str]) -> str:
+    """Return the most useful spotDL error line without emitting a full provider log to clients."""
+    useful = [line for line in diagnostics if line and any(word in line.lower() for word in ("error", "failed", "unable", "unsupported", "unavailable"))]
+    return (useful[-1] if useful else next((line for line in reversed(diagnostics) if line), "spotDL could not complete the download."))[:500]
 
 
 def progress_from_output(line: str, completed: int, total: int | None = None, observed_files: int | None = None) -> tuple[dict[str, Any], int, int | None]:
@@ -131,7 +156,7 @@ def main() -> int:
             event, completed, total = progress_from_output(line, completed, total, len(audio_outputs(output_directory)))
             emit({"event": "progress", **event})
         if process.wait() != 0:
-            raise RuntimeError(next((line for line in reversed(diagnostics) if line), "spotDL could not complete the download."))
+            raise RuntimeError(friendly_failure(diagnostics))
         files = audio_outputs(output_directory)
         if not files:
             raise RuntimeError("spotDL completed without producing an audio file.")
@@ -141,7 +166,7 @@ def main() -> int:
             output_path = files[0]
             emit({"event": "complete", "path": str(output_path), "filename": output_path.name, "mimetype": {"MP3": "audio/mpeg", "WAV": "audio/wav", "OGG": "audio/ogg", "M4A": "audio/mp4"}[args.format], "archive": False, "completed": completed, "total": total})
         else:
-            archive_path = Path(shutil.make_archive(str(output_directory / "spotify-download"), "zip", output_directory))
+            archive_path = create_download_archive(output_directory, files)
             emit({"event": "complete", "path": str(archive_path), "filename": "spotify-playlist.zip" if args.kind == "playlist" else "spotify-album.zip", "mimetype": "application/zip", "archive": True, "completed": completed, "total": total})
         return 0
     except Exception as error:

@@ -1,6 +1,7 @@
 import argparse
 import json
 import time
+import zipfile
 from pathlib import Path
 
 parser = argparse.ArgumentParser()
@@ -14,7 +15,9 @@ args = parser.parse_args()
 
 output = Path(args.output_directory) / "fake-playlist.zip"
 output.parent.mkdir(parents=True, exist_ok=True)
-output.write_bytes(b"fake-spotify-playlist")
+with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+    archive.writestr("01 - Fixture song.m4a", b"fixture-audio")
+    archive.writestr("playlist.m3u8", "#EXTM3U\n01 - Fixture song.m4a\n")
 print(json.dumps({"event": "started", "cookies_configured": False}), flush=True)
 print(json.dumps({"event": "progress", "state": "downloading", "progress": 38, "completed": 1, "total": 3, "current_item": "Track 1 — Fixture song", "message": "Downloading track 2 of 3"}), flush=True)
 time.sleep(0.08)

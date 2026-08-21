@@ -19,3 +19,6 @@
 - [x] Remove excess descriptive copy beneath the tool-page headers while preserving the header hierarchy.
 - [x] Enable selecting and converting multiple video files in one request, with a batch download result and clear status feedback.
 - [x] Commit the validated batch-video update to GitHub.
+- [x] Reproduce the reported Spotify playlist failure through a deterministic Express job flow and capture its failure condition.
+- [x] Verify the repaired Spotify playlist flow through `/api/spotify/download`, progress polling, and result download using a deterministic worker fixture.
+- [ ] Commit the validated Spotify playlist repair to GitHub.
