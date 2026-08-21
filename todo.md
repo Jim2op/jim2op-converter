@@ -21,4 +21,4 @@
 - [x] Commit the validated batch-video update to GitHub.
 - [x] Reproduce the reported Spotify playlist failure through a deterministic Express job flow and capture its failure condition.
 - [x] Verify the repaired Spotify playlist flow through `/api/spotify/download`, progress polling, and result download using a deterministic worker fixture.
-- [ ] Commit the validated Spotify playlist repair to GitHub.
+- [x] Commit the validated Spotify playlist repair to GitHub.
