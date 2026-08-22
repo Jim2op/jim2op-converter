@@ -18,6 +18,7 @@ import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
+import javafx.scene.control.TextInputDialog;
 import javafx.scene.control.Tooltip;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
@@ -298,10 +299,24 @@ public final class LauncherApplication extends Application {
     }
 
     private void searchMods() {
+        TextInputDialog queryDialog = new TextInputDialog(searchQuery.getText().trim());
+        queryDialog.setTitle("Search mods");
+        queryDialog.setHeaderText("Enter a mod search query");
+        queryDialog.setContentText("Search query:");
+
+        String query = queryDialog.showAndWait().map(String::trim).orElse(null);
+        if (query == null) {
+            return;
+        }
+        if (query.isBlank()) {
+            warn("Enter a search phrase.");
+            return;
+        }
+        searchQuery.setText(query);
+
         ModProvider provider = providerChoice.getValue();
-        String query = searchQuery.getText().trim();
-        if (provider == null || query.isBlank()) {
-            warn("Enter a search phrase and choose a provider.");
+        if (provider == null) {
+            warn("Choose a provider.");
             return;
         }
         if (!provider.isConfigured()) {
