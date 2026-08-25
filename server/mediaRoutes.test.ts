@@ -14,6 +14,8 @@ let workerBaseUrl = "";
 let stopWorkerServer: (() => Promise<void>) | undefined;
 let brokenWorkerBaseUrl = "";
 let stopBrokenWorkerServer: (() => Promise<void>) | undefined;
+let legacyGifBaseUrl = "";
+let stopLegacyGifServer: (() => Promise<void>) | undefined;
 const execFileAsync = promisify(execFile);
 
 beforeAll(async () => {
@@ -52,9 +54,21 @@ beforeAll(async () => {
   if (!brokenWorkerAddress || typeof brokenWorkerAddress === "string") throw new Error("Could not bind failing worker test server.");
   brokenWorkerBaseUrl = `http://127.0.0.1:${brokenWorkerAddress.port}`;
   stopBrokenWorkerServer = () => new Promise(resolve => brokenWorkerServer.close(() => resolve()));
+
+  const legacyGifApp = express();
+  legacyGifApp.use(express.json());
+  legacyGifApp.use(express.urlencoded({ extended: true }));
+  await registerMediaRoutes(legacyGifApp, { nativeVideoExtensions: [".mp4", ".mov", ".avi", ".mkv", ".webm"] });
+  const legacyGifServer = await new Promise<ReturnType<typeof legacyGifApp.listen>>(resolve => {
+    const listener = legacyGifApp.listen(0, "127.0.0.1", () => resolve(listener));
+  });
+  const legacyGifAddress = legacyGifServer.address();
+  if (!legacyGifAddress || typeof legacyGifAddress === "string") throw new Error("Could not bind legacy GIF test server.");
+  legacyGifBaseUrl = `http://127.0.0.1:${legacyGifAddress.port}`;
+  stopLegacyGifServer = () => new Promise(resolve => legacyGifServer.close(() => resolve()));
 });
 
-afterAll(async () => { await stopServer?.(); await stopWorkerServer?.(); await stopBrokenWorkerServer?.(); });
+afterAll(async () => { await stopServer?.(); await stopWorkerServer?.(); await stopBrokenWorkerServer?.(); await stopLegacyGifServer?.(); });
 
 async function waitForCompletion(endpoint: string, jobId: string, serverUrl = workerBaseUrl) {
   let payload: Record<string, unknown> = {};
@@ -121,6 +135,43 @@ describe("Manus media route contract", () => {
       expect(response.headers.get("content-type")).toContain("application/zip");
       expect(response.headers.get("content-disposition")).toContain("converted-videos.zip");
       const archive = Buffer.from(responseBody).toString("latin1");
+      expect(archive).toContain("01-first.gif");
+      expect(archive).toContain("02-second.gif");
+    } finally { await fs.rm(directory, { recursive: true, force: true }); }
+  });
+
+  it("reproduces the legacy multi-GIF rejection when animated GIFs are excluded from native media extensions", async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "converter-legacy-gif-test-"));
+    try {
+      const firstGif = path.join(directory, "first.gif");
+      const secondGif = path.join(directory, "second.gif");
+      await execFileAsync("ffmpeg", ["-y", "-f", "lavfi", "-i", "color=c=yellow:s=16x16:d=0.1", firstGif]);
+      await execFileAsync("ffmpeg", ["-y", "-f", "lavfi", "-i", "color=c=purple:s=16x16:d=0.1", secondGif]);
+      const form = new FormData();
+      form.append("format", "GIF");
+      form.append("image", new Blob([await fs.readFile(firstGif)], { type: "image/gif" }), "first.gif");
+      form.append("image", new Blob([await fs.readFile(secondGif)], { type: "image/gif" }), "second.gif");
+      const response = await fetch(`${legacyGifBaseUrl}/api/convert`, { method: "POST", body: form });
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({ error: "Batch conversion accepts video files and animated GIFs only." });
+    } finally { await fs.rm(directory, { recursive: true, force: true }); }
+  });
+
+  it("converts multiple animated GIF inputs into a native FFmpeg ZIP without a Python worker", async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "converter-gif-batch-test-"));
+    try {
+      const firstGif = path.join(directory, "first.gif");
+      const secondGif = path.join(directory, "second.gif");
+      await execFileAsync("ffmpeg", ["-y", "-f", "lavfi", "-i", "color=c=yellow:s=16x16:d=0.1", firstGif]);
+      await execFileAsync("ffmpeg", ["-y", "-f", "lavfi", "-i", "color=c=purple:s=16x16:d=0.1", secondGif]);
+      const form = new FormData();
+      form.append("format", "GIF");
+      form.append("image", new Blob([await fs.readFile(firstGif)], { type: "image/gif" }), "first.gif");
+      form.append("image", new Blob([await fs.readFile(secondGif)], { type: "image/gif" }), "second.gif");
+      const response = await fetch(`${baseUrl}/api/convert`, { method: "POST", body: form });
+      const archive = Buffer.from(await response.arrayBuffer()).toString("latin1");
+      expect(response.status, archive).toBe(200);
+      expect(response.headers.get("content-type")).toContain("application/zip");
       expect(archive).toContain("01-first.gif");
       expect(archive).toContain("02-second.gif");
     } finally { await fs.rm(directory, { recursive: true, force: true }); }

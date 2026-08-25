@@ -16,6 +16,7 @@ const IMAGE_FORMATS = ["PNG", "JPEG", "WEBP", "BMP", "TIFF", "GIF", "AVIF"] as c
 const AUDIO_FORMATS = new Set(["MP3", "WAV", "OGG", "M4A"]);
 const VIDEO_FORMATS = new Set(["GIF", ...Array.from(AUDIO_FORMATS)]);
 const VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".avi", ".mkv", ".webm"]);
+const NATIVE_VIDEO_EXTENSIONS = new Set([...Array.from(VIDEO_EXTENSIONS), ".gif"]);
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tiff", ".webp", ".avif"]);
 const MIME_TYPES: Record<string, string> = {
   PNG: "image/png", JPEG: "image/jpeg", WEBP: "image/webp", BMP: "image/bmp", TIFF: "image/tiff", GIF: "image/gif", AVIF: "image/avif",
@@ -55,6 +56,8 @@ export type MediaRouteOptions = {
   workerDirectory?: string;
   cookiesDirectory?: string;
   workDirectory?: string;
+  /** Enables deterministic route tests that emulate legacy accepted local-media extensions. */
+  nativeVideoExtensions?: string[];
 };
 
 const youtubeJobs = new Map<string, DownloadJob>();
@@ -246,6 +249,7 @@ export async function registerMediaRoutes(app: Express, options: MediaRouteOptio
     workerDirectory: options.workerDirectory || WORKER_DIRECTORY,
     cookiesDirectory: options.cookiesDirectory || COOKIES_DIRECTORY,
     workDirectory: options.workDirectory || WORK_DIRECTORY,
+    nativeVideoExtensions: new Set(options.nativeVideoExtensions || Array.from(NATIVE_VIDEO_EXTENSIONS)),
   };
   await prepareDirectories();
   app.get("/api/config", async (_request, response) => response.json({
@@ -263,8 +267,10 @@ export async function registerMediaRoutes(app: Express, options: MediaRouteOptio
       const extension = path.extname(file.originalname).toLowerCase();
       let result: { buffer: Buffer; filename: string; mimetype: string };
       if (files.length > 1) {
-        if (!files.every(entry => VIDEO_EXTENSIONS.has(path.extname(entry.originalname).toLowerCase()))) throw new Error("Batch conversion accepts video files only.");
+        const extensions = files.map(entry => path.extname(entry.originalname).toLowerCase());
+        if (!extensions.every(entry => runtime.nativeVideoExtensions.has(entry))) throw new Error("Batch conversion accepts video files and animated GIFs only.");
         if (!VIDEO_FORMATS.has(format)) throw new Error("Videos can only be converted to GIF or extracted as audio.");
+        if (extensions.includes(".gif") && format !== "GIF") throw new Error("Animated GIF inputs can be batch-converted to GIF only.");
         result = await convertVideoBatch(files, format);
       } else if (IMAGE_EXTENSIONS.has(extension)) {
         if (!IMAGE_FORMATS.includes(format as (typeof IMAGE_FORMATS)[number])) throw new Error("Unsupported image output format.");

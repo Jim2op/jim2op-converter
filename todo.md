@@ -22,3 +22,6 @@
 - [x] Reproduce the reported Spotify playlist failure through a deterministic Express job flow and capture its failure condition.
 - [x] Verify the repaired Spotify playlist flow through `/api/spotify/download`, progress polling, and result download using a deterministic worker fixture.
 - [x] Commit the validated Spotify playlist repair to GitHub.
+- [x] Reproduce the reported multi-video GIF failure through the native `/api/convert` FFmpeg path.
+- [x] Repair native batch GIF conversion without using Python workers and remove Python references from local-video status text.
+- [ ] Commit the validated native batch GIF repair to GitHub.
