@@ -1,6 +1,7 @@
 import importlib.util
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 WORKER_PATH = Path(__file__).parents[1] / "python" / "spotify_worker.py"
 SPEC = importlib.util.spec_from_file_location("spotify_worker", WORKER_PATH)
@@ -10,6 +11,14 @@ SPEC.loader.exec_module(WORKER)
 
 
 class SpotifyWorkerProgressTests(unittest.TestCase):
+    def test_reports_the_project_install_command_when_spotdl_is_missing(self):
+        with patch("importlib.util.find_spec", return_value=None):
+            with self.assertRaisesRegex(
+                RuntimeError,
+                r"python -m pip install -r python\\requirements\.txt",
+            ):
+                WORKER.ensure_spotdl_is_available()
+
     def test_parses_playlist_item_counts_and_current_track(self):
         event, completed, total = WORKER.progress_from_output(
             "Downloading track 2 of 5: Example song",

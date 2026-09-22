@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import re
 import shutil
@@ -86,6 +87,14 @@ def build_command(args: argparse.Namespace, cookie_file: Path | None) -> list[st
     if cookie_file:
         command.extend(["--cookie-file", str(cookie_file)])
     return command
+
+
+def ensure_spotdl_is_available() -> None:
+    """Fail with the project-specific installation command before launching spotDL."""
+    if importlib.util.find_spec("spotdl") is None:
+        raise RuntimeError(
+            "spotDL is not installed. Run: python -m pip install -r python\\requirements.txt"
+        )
 
 
 def audio_outputs(output_directory: Path) -> list[Path]:
@@ -192,6 +201,7 @@ def main() -> int:
     total: int | None = None
     diagnostics: list[str] = []
     try:
+        ensure_spotdl_is_available()
         # Pipe output so the browser receives item-level lifecycle updates while spotDL is running.
         process = subprocess.Popen(
             command,
