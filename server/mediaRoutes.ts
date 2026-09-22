@@ -49,6 +49,7 @@ type DownloadJob = {
   totalItems?: number | null;
   currentItem?: string | null;
   message?: string | null;
+  items?: Array<{ name: string; state: string; progress: number }>;
 };
 
 export type MediaRouteOptions = {
@@ -62,6 +63,7 @@ export type MediaRouteOptions = {
 
 const youtubeJobs = new Map<string, DownloadJob>();
 const spotifyJobs = new Map<string, DownloadJob>();
+const localJobs = new Map<string, DownloadJob>();
 
 const storage = multer.diskStorage({
   destination: (_request, _file, callback) => callback(null, UPLOAD_DIRECTORY),
@@ -165,6 +167,7 @@ function publicJob(job: DownloadJob) {
     elapsed: Math.max(0, Math.floor((Date.now() - job.startedAt) / 1000)), error: job.error || null,
     cookiesIssue: job.cookiesIssue || null, completedItems: Number.isFinite(job.completedItems) ? job.completedItems : 0,
     totalItems: Number.isFinite(job.totalItems) ? job.totalItems : null, currentItem: job.currentItem || null, message: job.message || null,
+    items: job.items || null,
   };
 }
 
@@ -261,30 +264,126 @@ export async function registerMediaRoutes(app: Express, options: MediaRouteOptio
   app.post("/api/convert", upload.array("image", 10), async (request: Request, response: Response) => {
     const files = (request.files || []) as Express.Multer.File[];
     const format = String(request.body.format || "PNG").toUpperCase();
+    const jobId = randomUUID();
+    const job: DownloadJob = { state: "queued", progress: 0, startedAt: Date.now(), format, quality: "auto" };
+    localJobs.set(jobId, job);
+
     try {
       if (files.length === 0) throw new Error("No file was uploaded.");
-      const file = files[0];
-      const extension = path.extname(file.originalname).toLowerCase();
-      let result: { buffer: Buffer; filename: string; mimetype: string };
+      const extensions = files.map(entry => path.extname(entry.originalname).toLowerCase());
+
       if (files.length > 1) {
-        const extensions = files.map(entry => path.extname(entry.originalname).toLowerCase());
         if (!extensions.every(entry => runtime.nativeVideoExtensions.has(entry))) throw new Error("Batch conversion accepts video files and animated GIFs only.");
         if (!VIDEO_FORMATS.has(format)) throw new Error("Videos can only be converted to GIF or extracted as audio.");
         if (extensions.includes(".gif") && format !== "GIF") throw new Error("Animated GIF inputs can be batch-converted to GIF only.");
-        result = await convertVideoBatch(files, format);
-      } else if (IMAGE_EXTENSIONS.has(extension)) {
-        if (!IMAGE_FORMATS.includes(format as (typeof IMAGE_FORMATS)[number])) throw new Error("Unsupported image output format.");
-        result = await convertImage(file, format);
-        await removeFiles(files.map(entry => entry.path));
-      } else if (VIDEO_EXTENSIONS.has(extension)) {
-        if (!VIDEO_FORMATS.has(format)) throw new Error("Video input can only be converted to GIF or extracted as audio.");
-        result = await convertVideo(file, format);
-        await removeFiles(files.slice(1).map(entry => entry.path));
-      } else throw new Error("Unsupported file type.");
-      response.type(result.mimetype).attachment(result.filename).send(result.buffer);
+      } else {
+        const extension = extensions[0]!;
+        if (IMAGE_EXTENSIONS.has(extension)) {
+          if (!IMAGE_FORMATS.includes(format as (typeof IMAGE_FORMATS)[number])) throw new Error("Unsupported image output format.");
+        } else if (VIDEO_EXTENSIONS.has(extension)) {
+          if (!VIDEO_FORMATS.has(format)) throw new Error("Video input can only be converted to GIF or extracted as audio.");
+        } else throw new Error("Unsupported file type.");
+      }
+
+      // Background processing
+      (async () => {
+        try {
+          job.state = "processing";
+          job.totalItems = files.length;
+          job.completedItems = 0;
+          job.items = files.map(f => ({ name: f.originalname, state: "pending", progress: 0 }));
+
+          if (files.length > 1) {
+            const batchDirectory = path.join(WORK_DIRECTORY, `batch-${jobId}`);
+            const archivePath = `${batchDirectory}.zip`;
+            job.workDirectory = batchDirectory;
+            await fs.mkdir(batchDirectory, { recursive: true });
+
+            const outputs: Array<{ source: string; name: string }> = [];
+            for (let index = 0; index < files.length; index += 1) {
+              const file = files[index]!;
+              job.currentItem = file.originalname;
+              job.items![index]!.state = "processing";
+              job.items![index]!.progress = 10;
+
+              const filename = `${String(index + 1).padStart(2, "0")}-${safeName(file.originalname)}.${extensionFor(format)}`;
+              const outputPath = path.join(batchDirectory, filename);
+              await convertVideoToPath(file, format, outputPath);
+
+              job.items![index]!.state = "completed";
+              job.items![index]!.progress = 100;
+              job.completedItems! += 1;
+              job.progress = Math.round((job.completedItems! / job.totalItems!) * 100);
+              outputs.push({ source: outputPath, name: filename });
+            }
+
+            job.message = "Creating archive...";
+            await createZipArchive(archivePath, outputs);
+            job.outputPath = archivePath;
+            job.filename = "converted-videos.zip";
+            job.mimetype = "application/zip";
+          } else {
+            const file = files[0]!;
+            const extension = path.extname(file.originalname).toLowerCase();
+            job.items![0]!.state = "processing";
+            job.items![0]!.progress = 50;
+
+            let result: { buffer: Buffer; filename: string; mimetype: string };
+            if (IMAGE_EXTENSIONS.has(extension)) {
+              result = await convertImage(file, format);
+            } else {
+              const outputPath = path.join(WORK_DIRECTORY, `${randomUUID()}.${extensionFor(format)}`);
+              await convertVideoToPath(file, format, outputPath);
+              result = { buffer: await fs.readFile(outputPath), filename: `${safeName(file.originalname)}.${extensionFor(format)}`, mimetype: MIME_TYPES[format] };
+              await removeFiles([outputPath]);
+            }
+
+            const finalPath = path.join(WORK_DIRECTORY, `${randomUUID()}.${extensionFor(format)}`);
+            await fs.writeFile(finalPath, result.buffer);
+            job.outputPath = finalPath;
+            job.filename = result.filename;
+            job.mimetype = result.mimetype;
+            job.items![0]!.state = "completed";
+            job.items![0]!.progress = 100;
+            job.completedItems = 1;
+            job.progress = 100;
+          }
+
+          job.state = "completed";
+          await removeFiles(files.map(f => f.path));
+        } catch (error) {
+          job.state = "failed";
+          job.error = error instanceof Error ? error.message : "The conversion could not be completed.";
+          await removeFiles([...files.map(f => f.path), job.workDirectory, job.outputPath]);
+        }
+      })();
+
+      response.json({ job_id: jobId });
     } catch (error) {
-      await removeFiles(files.map(entry => entry.path));
+      localJobs.delete(jobId);
+      await removeFiles(files.map(file => file.path));
       response.status(400).json({ error: error instanceof Error ? error.message : "The conversion could not be completed." });
+    }
+  });
+
+  app.get("/api/convert/progress/:jobId", (request, response) => {
+    const job = localJobs.get(request.params.jobId);
+    if (!job) return response.status(404).json({ error: "Job not found." });
+    response.json(publicJob(job));
+  });
+
+  app.get("/api/convert/result/:jobId", async (request, response) => {
+    const jobId = request.params.jobId;
+    const job = localJobs.get(jobId);
+    if (!job) return response.status(404).json({ error: "Download job not found." });
+    if (job.state !== "completed" || !job.outputPath) return response.status(409).json({ error: "Download is not complete." });
+    try {
+      const buffer = await fs.readFile(job.outputPath);
+      response.type(job.mimetype || "application/octet-stream").attachment(job.filename || "download").send(buffer);
+      await removeFiles([job.workDirectory, job.outputPath]);
+      localJobs.delete(jobId);
+    } catch (error) {
+      response.status(500).json({ error: error instanceof Error ? error.message : "Could not read completed download." });
     }
   });
 

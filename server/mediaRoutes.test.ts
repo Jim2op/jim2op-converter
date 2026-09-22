@@ -81,6 +81,10 @@ async function waitForCompletion(endpoint: string, jobId: string, serverUrl = wo
   return payload;
 }
 
+async function waitForLocalCompletion(jobId: string, serverUrl = baseUrl) {
+  return waitForCompletion("/api/convert/progress", jobId, serverUrl);
+}
+
 describe("Manus media route contract", () => {
   it("preserves the format configuration consumed by the existing static client", async () => {
     const response = await fetch(`${baseUrl}/api/config`);
@@ -106,13 +110,17 @@ describe("Manus media route contract", () => {
     expect(invalidSpotify.status).toBe(400);
   });
 
-  it("converts an uploaded PNG to a JPEG attachment through the legacy endpoint", async () => {
+  it("converts an uploaded PNG to a JPEG attachment through the local job endpoint", async () => {
     const png = await sharp({ create: { width: 2, height: 2, channels: 3, background: { r: 75, g: 156, b: 211 } } }).png().toBuffer();
     const form = new FormData();
     form.append("format", "JPEG");
     form.append("image", new Blob([png], { type: "image/png" }), "fixture.png");
-    const response = await fetch(`${baseUrl}/api/convert`, { method: "POST", body: form });
-    expect(response.status).toBe(200);
+    const start = await fetch(`${baseUrl}/api/convert`, { method: "POST", body: form });
+    const started = await start.json() as { job_id: string };
+    expect(start.status).toBe(200);
+    const progress = await waitForLocalCompletion(started.job_id);
+    expect(progress).toMatchObject({ state: "completed", progress: 100, completedItems: 1, totalItems: 1 });
+    const response = await fetch(`${baseUrl}/api/convert/result/${started.job_id}`);
     expect(response.headers.get("content-type")).toContain("image/jpeg");
     expect(response.headers.get("content-disposition")).toContain("fixture.jpg");
     expect((await response.arrayBuffer()).byteLength).toBeGreaterThan(0);
@@ -129,7 +137,15 @@ describe("Manus media route contract", () => {
       form.append("format", "GIF");
       form.append("image", new Blob([await fs.readFile(firstVideo)], { type: "video/mp4" }), "first.mp4");
       form.append("image", new Blob([await fs.readFile(secondVideo)], { type: "video/mp4" }), "second.mp4");
-      const response = await fetch(`${baseUrl}/api/convert`, { method: "POST", body: form });
+      const start = await fetch(`${baseUrl}/api/convert`, { method: "POST", body: form });
+      const started = await start.json() as { job_id: string };
+      const progress = await waitForLocalCompletion(started.job_id);
+      expect(progress.state).toBe("completed");
+      expect(progress.items).toEqual([
+        { name: "first.mp4", state: "completed", progress: 100 },
+        { name: "second.mp4", state: "completed", progress: 100 },
+      ]);
+      const response = await fetch(`${baseUrl}/api/convert/result/${started.job_id}`);
       const responseBody = await response.arrayBuffer();
       expect(response.status, Buffer.from(responseBody).toString("utf8")).toBe(200);
       expect(response.headers.get("content-type")).toContain("application/zip");
@@ -168,7 +184,15 @@ describe("Manus media route contract", () => {
       form.append("format", "GIF");
       form.append("image", new Blob([await fs.readFile(firstGif)], { type: "image/gif" }), "first.gif");
       form.append("image", new Blob([await fs.readFile(secondGif)], { type: "image/gif" }), "second.gif");
-      const response = await fetch(`${baseUrl}/api/convert`, { method: "POST", body: form });
+      const start = await fetch(`${baseUrl}/api/convert`, { method: "POST", body: form });
+      const started = await start.json() as { job_id: string };
+      const progress = await waitForLocalCompletion(started.job_id);
+      expect(progress.state).toBe("completed");
+      expect(progress.items).toEqual([
+        { name: "first.gif", state: "completed", progress: 100 },
+        { name: "second.gif", state: "completed", progress: 100 },
+      ]);
+      const response = await fetch(`${baseUrl}/api/convert/result/${started.job_id}`);
       const archive = Buffer.from(await response.arrayBuffer()).toString("latin1");
       expect(response.status, archive).toBe(200);
       expect(response.headers.get("content-type")).toContain("application/zip");

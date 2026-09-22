@@ -25,3 +25,7 @@
 - [x] Reproduce the reported multi-video GIF failure through the native `/api/convert` FFmpeg path.
 - [x] Repair native batch GIF conversion without using Python workers and remove Python references from local-video status text.
 - [x] Commit the validated native batch GIF repair to GitHub.
+- [x] Add a background local-conversion job model with per-file progress and status data for batch video/GIF conversions.
+- [x] Render an individual progress bar and status indicator for every batch file while preserving the existing shell styling.
+- [x] Wire the HTML shell to the latest uploaded progress-aware CSS and JavaScript assets.
+- [x] Run the final test, type-check, and preview validation, then commit the complete progress-tracking update to GitHub.
