@@ -1,3 +1,4 @@
+import argparse
 import importlib.util
 from pathlib import Path
 import unittest
@@ -34,6 +35,33 @@ class SpotifyWorkerProgressTests(unittest.TestCase):
         diagnostics = ["Processing query: https://open.spotify.com/track/abc"]
         message = WORKER.friendly_error(diagnostics, cookie_file=None, fallback="spotDL completed without producing an audio file.")
         self.assertEqual(message, "spotDL completed without producing an audio file.")
+
+    def test_skips_lyrics_lookups_to_avoid_slow_third_party_requests(self):
+        args = argparse.Namespace(
+            url="https://open.spotify.com/track/abc",
+            kind="track",
+            output_directory="out",
+            format="MP3",
+            quality="192",
+        )
+        command = WORKER.build_command(args, cookie_file=None)
+        self.assertIn("--lyrics", command)
+        # `--lyrics` with no provider names disables every lyrics lookup (nargs="*").
+        following = command[command.index("--lyrics") + 1]
+        self.assertTrue(following.startswith("--"))
+
+    def test_downloads_playlist_and_album_tracks_concurrently(self):
+        args = argparse.Namespace(
+            url="https://open.spotify.com/playlist/abc",
+            kind="playlist",
+            output_directory="out",
+            format="MP3",
+            quality="192",
+        )
+        command = WORKER.build_command(args, cookie_file=None)
+        self.assertIn("--threads", command)
+        threads = int(command[command.index("--threads") + 1])
+        self.assertGreater(threads, 1)
 
     def test_parses_playlist_item_counts_and_current_track(self):
         event, completed, total = WORKER.progress_from_output(

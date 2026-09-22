@@ -80,6 +80,13 @@ def build_command(args: argparse.Namespace, cookie_file: Path | None) -> list[st
         "--log-level",
         "INFO",
         "--print-errors",
+        # No provider names after --lyrics disables lyrics lookups (nargs="*"), skipping up to three
+        # sequential third-party requests per track (Genius, AZLyrics, Musixmatch) that this app never uses.
+        "--lyrics",
+        # spotDL downloads this many tracks concurrently; raising it from the default of 4 speeds up
+        # albums and playlists without affecting single-track downloads.
+        "--threads",
+        "8",
     ]
     # spotDL embeds the track metadata and album cover unless --skip-album-art is supplied; do not disable it.
     if args.kind == "playlist":
