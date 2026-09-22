@@ -115,6 +115,13 @@ npm run dev
 
 If the 403 response remains, export **fresh cookies** from the browser account you use for YouTube in Netscape format and save the export as `cookies\cookies.txt`. Do not copy Chrome’s internal `Cookies` database file: yt-dlp requires a Netscape-format text export. The YouTube progress panel now indicates when it cannot find a valid export.
 
+Spotify downloads match tracks to YouTube audio internally, so a Spotify job that fails with **"YouTube blocked the automated request"** has the same cause and the same fix: update yt-dlp and spotDL, then refresh `cookies\cookies.txt` with a current export.
+
+```powershell
+python -m pip install --upgrade yt-dlp spotdl
+npm run dev
+```
+
 ## References
 
 [1] [spotDL usage documentation](https://spotdl.github.io/spotify-downloader/usage/)

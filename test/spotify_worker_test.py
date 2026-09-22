@@ -19,6 +19,22 @@ class SpotifyWorkerProgressTests(unittest.TestCase):
             ):
                 WORKER.ensure_spotdl_is_available()
 
+    def test_explains_a_blocked_youtube_match_with_recovery_steps(self):
+        diagnostics = [
+            "Processing query: https://open.spotify.com/track/abc",
+            "AudioProviderError: YT-DLP download error -",
+            "https://www.youtube.com/watch?v=example",
+        ]
+        message = WORKER.friendly_error(diagnostics, cookie_file=None, fallback="spotDL completed without producing an audio file.")
+        self.assertIn("blocked", message.lower())
+        self.assertIn("yt-dlp", message.lower())
+        self.assertIn("cookies.txt", message)
+
+    def test_keeps_the_fallback_message_when_no_known_failure_pattern_is_present(self):
+        diagnostics = ["Processing query: https://open.spotify.com/track/abc"]
+        message = WORKER.friendly_error(diagnostics, cookie_file=None, fallback="spotDL completed without producing an audio file.")
+        self.assertEqual(message, "spotDL completed without producing an audio file.")
+
     def test_parses_playlist_item_counts_and_current_track(self):
         event, completed, total = WORKER.progress_from_output(
             "Downloading track 2 of 5: Example song",

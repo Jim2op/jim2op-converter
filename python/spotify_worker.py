@@ -97,6 +97,29 @@ def ensure_spotdl_is_available() -> None:
         )
 
 
+def friendly_error(diagnostics: list[str], cookie_file: Path | None, fallback: str) -> str:
+    """Turn a swallowed spotDL/yt-dlp match failure into actionable recovery guidance.
+
+    spotDL exits 0 even when every track match fails, so the real reason (usually YouTube
+    blocking the automated download) never reaches the caller unless we inspect the
+    worker's own captured diagnostic lines for the known failure signature.
+    """
+    combined = " ".join(diagnostics)
+    if "AudioProviderError" not in combined and "YT-DLP download error" not in combined:
+        return fallback
+    if cookie_file:
+        return (
+            "spotDL could not download matching audio: YouTube blocked the automated request. "
+            "Update yt-dlp and spotDL, then replace cookies.txt with a fresh Netscape-format "
+            "export from the same browser account. Existing cookies may be expired."
+        )
+    return (
+        "spotDL could not download matching audio: YouTube blocked the automated request. "
+        "Update yt-dlp and spotDL, then add a fresh Netscape-format cookies.txt export to the "
+        "project cookies folder and try again."
+    )
+
+
 def audio_outputs(output_directory: Path) -> list[Path]:
     """Return only completed audio assets; logs and playlist files stay out of single-file responses."""
     return sorted(
@@ -222,12 +245,12 @@ def main() -> int:
             )
             emit({"event": "progress", **event})
         if process.wait() != 0:
-            detail = next((line for line in reversed(diagnostics) if line), "spotDL could not complete the download.")
-            raise RuntimeError(detail)
+            fallback = next((line for line in reversed(diagnostics) if line), "spotDL could not complete the download.")
+            raise RuntimeError(friendly_error(diagnostics, cookie_file, fallback))
 
         files = audio_outputs(output_directory)
         if not files:
-            raise RuntimeError("spotDL completed without producing an audio file.")
+            raise RuntimeError(friendly_error(diagnostics, cookie_file, "spotDL completed without producing an audio file."))
         completed = max(completed, len(files))
         total = max(total or 0, completed) or None
         emit({"event": "progress", "state": "finalizing", "progress": 96, "completed": completed, "total": total, "message": "Preparing your download"})
