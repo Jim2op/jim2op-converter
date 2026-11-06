@@ -64,12 +64,12 @@ Format and quality choices come from `GET /api/config`, so the app never drifts 
 ## Data flow
 
 1. On launch the app loads the saved server address and calls `/api/config`. If that fails, every tool screen shows "Can't reach the server" with the address and a link back to Home.
-2. File tools upload with `multipart/form-data` and receive the converted file in the response body, which is written straight to the cache with `expo-file-system`.
+2. File tools upload with `multipart/form-data` plus `deliver=link`, then download the one-time result link into the cache with `expo-file-system`.
 3. Download tools start a job, poll until it finishes, then fetch the result once. The server deletes a result after it is fetched, so the app downloads it to the cache immediately and saves or shares from there.
 
 ## Server change
 
-One field in `server.js`: job progress includes `filename` once a job completes, so the app can name the downloaded result (the result route deletes the file after one fetch). React Native requests are not subject to browser CORS, and Expo Go allows plain-HTTP requests to LAN addresses. The README gains an "Expo Go" section: start the server, find the PC's IPv4 address with `ipconfig`, allow Node through the Windows firewall on private networks, run `npx expo start` in `expo-app/`, scan the QR code, and enter the server address on Home.
+Two additions to `server.js`, both backwards compatible with the browser app: job progress includes `filename` once a job completes, so the app can name the downloaded result (the result route deletes the file after one fetch); and `POST /api/convert` accepts `deliver=link`, returning `201 { result_url, filename }` for a one-time `GET /api/convert/result/:id`, so large conversion results download straight to the phone's disk instead of through JavaScript memory. React Native requests are not subject to browser CORS, and Expo Go allows plain-HTTP requests to LAN addresses. The README gains an "Expo Go" section: start the server, find the PC's IPv4 address with `ipconfig`, allow Node through the Windows firewall on private networks, run `npx expo start` in `expo-app/`, scan the QR code, and enter the server address on Home.
 
 ## Error handling
 
