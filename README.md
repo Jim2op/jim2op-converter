@@ -74,6 +74,7 @@ npm run dev
 | `static/app.js` | Client-side routes, UI state, previews, status feedback, and API requests. |
 | `static/style.css` | Shared responsive light and dark UI styling. |
 | `test/server.test.js` | Node.js tests for the static shell and API contract. |
+| `expo-app/` | Expo Go phone app (Expo SDK 58) that drives this server over your Wi-Fi; screens live in `expo-app/app/`, logic in `expo-app/src/`. |
 
 ## YouTube playlists
 
@@ -97,12 +98,37 @@ Run the JavaScript test suite with:
 
 ```powershell
 npm test
-python -m unittest discover -s test -p "spotify_worker_test.py"
+python -m unittest discover -s test -p "*_worker_test.py"
+
+# Expo Go app
+cd expo-app
+npm test
+npx tsc --noEmit
 ```
 
 ## Access from another device
 
 The server binds to all local network interfaces. Find your computer’s local IPv4 address with `ipconfig`, then open `http://YOUR-IP:5000` from another device on the same network. If Windows prompts for firewall access, allow Node.js on private networks.
+
+## Expo Go app
+
+The `expo-app/` folder is a phone version of the Converter for development and testing with **Expo Go**. Every conversion and download still runs on this server, so keep it running on your PC while you use the app. The phone and the PC must be on the same Wi-Fi network.
+
+1. Update **Expo Go** on your phone from the App Store or Google Play. The app uses **Expo SDK 58**, so an older Expo Go will refuse to open it.
+2. Start the server at the repository root with `npm run dev`. If Windows asks, allow Node.js on **private** networks.
+3. Find the PC's IPv4 address with `ipconfig` (for example `192.168.1.20`).
+4. Start the app's development server:
+
+   ```powershell
+   cd expo-app
+   npm install
+   npx expo start
+   ```
+
+5. Scan the QR code: with the Expo Go app on Android, or with the Camera app on iPhone.
+6. On the app's Home screen, enter `http://YOUR-IP:5000` and tap **Test connection**.
+
+Converted images and videos can be saved to your photos. Audio files and playlist ZIPs open the share sheet instead, where you can save them to Files or send them to another app. If the app says it can't reach the server, check that both devices are on the same Wi-Fi and that Node.js is allowed through Windows Firewall.
 
 ## Troubleshooting a YouTube 403 response
 
