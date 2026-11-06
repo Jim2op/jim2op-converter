@@ -1,7 +1,7 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { ServerProvider } from '../settings/ServerContext';
-import { usePalette } from '../ui/theme';
+import { ServerProvider } from '../src/settings/ServerContext';
+import { usePalette } from '../src/ui/theme';
 
 export default function RootLayout() {
   const palette = usePalette();

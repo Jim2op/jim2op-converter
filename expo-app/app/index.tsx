@@ -1,8 +1,8 @@
 import { Link, type Href } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useServer } from '../settings/ServerContext';
-import { accents, usePalette } from '../ui/theme';
+import { useServer } from '../src/settings/ServerContext';
+import { accents, usePalette } from '../src/ui/theme';
 
 const TOOLS: { href: Href; title: string; description: string; accent: string }[] = [
   { href: '/image', title: 'Image converter', description: 'Convert between PNG, JPEG, WebP, GIF, TIFF and AVIF.', accent: accents.image },

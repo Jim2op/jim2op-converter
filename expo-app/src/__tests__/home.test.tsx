@@ -1,8 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fireEvent, screen } from '@testing-library/react-native';
 import { renderRouter } from 'expo-router/testing-library';
-import Layout from '../app/_layout';
-import Home from '../app/index';
+import Layout from '../../app/_layout';
+import Home from '../../app/index';
 
 const config = {
   image_formats: ['PNG', 'JPEG'], video_outputs: ['GIF', 'MP3'], youtube_video_qualities: ['720'],
