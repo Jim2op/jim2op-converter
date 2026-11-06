@@ -13,6 +13,7 @@ type Deps = {
 };
 
 const LOST_JOB = 'The server lost this job. Was it restarted?';
+const MAX_NETWORK_RETRIES = 4;
 
 /** Start a YouTube or Spotify job, poll its progress, and download the result once it completes. */
 export function useJob({ client, kind, download, intervalMs = 2000 }: Deps) {
@@ -37,13 +38,21 @@ export function useJob({ client, kind, download, intervalMs = 2000 }: Deps) {
     setPhase('failed');
   };
 
-  const poll = async (token: number, jobId: string): Promise<void> => {
+  const poll = async (token: number, jobId: string, networkMisses = 0): Promise<void> => {
     let current: JobProgress;
     try {
       current = await client.getProgress(kind, jobId);
     } catch (caught) {
       if (token !== run.current) return;
-      fail(caught instanceof ServerError && caught.status === 404 ? LOST_JOB : (caught as Error).message);
+      if (caught instanceof ServerError) {
+        // The server answered, so retrying won't help.
+        fail(caught.status === 404 ? LOST_JOB : caught.message);
+      } else if (networkMisses < MAX_NETWORK_RETRIES) {
+        // Wi-Fi blips and app resumes are common on phones; the job keeps running on the PC meanwhile.
+        timer.current = setTimeout(() => void poll(token, jobId, networkMisses + 1), intervalMs);
+      } else {
+        fail(`Lost contact with the server (${(caught as Error).message}). Check the Wi-Fi, then start the download again.`);
+      }
       return;
     }
     if (token !== run.current) return;
@@ -58,7 +67,10 @@ export function useJob({ client, kind, download, intervalMs = 2000 }: Deps) {
         setResult({ uri, filename });
         setPhase('done');
       } catch (caught) {
-        if (token === run.current) fail((caught as Error).message);
+        // The server deletes a result once it has been sent, so this can't be retried.
+        if (token === run.current) {
+          fail(`The download finished on the PC but couldn't be saved to this phone (${(caught as Error).message}). Start it again.`);
+        }
       }
     } else if (current.state === 'failed' || current.state === 'error') {
       fail(current.error || 'The download failed.');

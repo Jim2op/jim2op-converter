@@ -84,3 +84,50 @@ test('a completed job without a filename gets a default name', async () => {
 
   expect(download).toHaveBeenCalledWith('http://h:5000/api/youtube/result/job-1', 'youtube-download');
 });
+
+test('a brief network drop is retried and the job carries on', async () => {
+  const getProgress = jest.fn()
+    .mockResolvedValueOnce(progress({ state: 'downloading' }))
+    .mockRejectedValueOnce(new Error("Can't reach the server at http://h:5000"))
+    .mockRejectedValueOnce(new Error("Can't reach the server at http://h:5000"))
+    .mockResolvedValueOnce(progress({ state: 'completed', filename: 'a.mp3' }));
+  const download = jest.fn().mockResolvedValue('file:///cache/a.mp3');
+  const { result } = await renderHook(() => useJob({ client: fakeClient(getProgress), kind: 'youtube', download }));
+
+  await act(() => result.current.start('https://youtu.be/x', 'MP3', '192'));
+  await tick();
+  await tick();
+  await tick();
+
+  expect(result.current.phase).toBe('done');
+  expect(download).toHaveBeenCalledTimes(1);
+});
+
+test('the job fails only after several network drops in a row', async () => {
+  const getProgress = jest.fn()
+    .mockResolvedValueOnce(progress({ state: 'downloading' }))
+    .mockRejectedValue(new Error("Can't reach the server at http://h:5000"));
+  const { result } = await renderHook(() => useJob({ client: fakeClient(getProgress), kind: 'youtube', download: jest.fn() }));
+
+  await act(() => result.current.start('https://youtu.be/x', 'MP3', '192'));
+  for (let i = 0; i < 4; i += 1) await tick();
+  expect(result.current.phase).toBe('running');
+  await tick();
+
+  expect(result.current.phase).toBe('failed');
+  expect(result.current.error).toBe("Lost contact with the server (Can't reach the server at http://h:5000). Check the Wi-Fi, then start the download again.");
+  expect(getProgress).toHaveBeenCalledTimes(6);
+});
+
+test('a failed result download gets a clear message', async () => {
+  const getProgress = jest.fn().mockResolvedValue(progress({ state: 'completed', filename: 'a.zip' }));
+  const download = jest.fn().mockRejectedValue(new Error('Unable to download a file: response has status 409'));
+  const { result } = await renderHook(() => useJob({ client: fakeClient(getProgress), kind: 'spotify', download }));
+
+  await act(() => result.current.start('https://open.spotify.com/album/x', 'MP3', '192'));
+
+  expect(result.current.phase).toBe('failed');
+  expect(result.current.error).toBe(
+    "The download finished on the PC but couldn't be saved to this phone (Unable to download a file: response has status 409). Start it again.",
+  );
+});
