@@ -467,7 +467,7 @@ export function createApp(options = {}) {
   });
 
   // Every browser route returns the same static JavaScript shell; app.js owns view rendering.
-  app.get(['/', '/image', '/video', '/youtube', '/spotify'], (_request, response) => response.sendFile(path.join(STATIC_DIRECTORY, 'index.html')));
+  app.get(['/', '/image', '/video', '/youtube', '/spotify'], (_request, response) => response.sendFile('index.html', { root: STATIC_DIRECTORY }));
 
   app.use((error, _request, response, _next) => {
     const status = error.status || (error.code && String(error.code).startsWith('LIMIT') ? 413 : 500);
