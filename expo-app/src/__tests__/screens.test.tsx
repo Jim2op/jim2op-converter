@@ -56,10 +56,8 @@ test('the image screen converts a picked photo and offers to save it', async () 
   });
   fetchMock.mockImplementation(async (url: string) => {
     if (url.endsWith('/api/config')) return json(config);
-    return {
-      ok: true, status: 200, arrayBuffer: async () => new Uint8Array([1]).buffer,
-      headers: { get: (name: string) => (name === 'Content-Disposition' ? 'attachment; filename="cat.jpg"' : null) },
-    };
+    if (url.endsWith('/api/convert')) return json({ result_url: '/api/convert/result/c1', filename: 'cat.jpg' }, 201);
+    throw new Error(`unexpected ${url}`);
   });
   await renderRouter(routes, { initialUrl: '/image' });
 
@@ -70,6 +68,7 @@ test('the image screen converts a picked photo and offers to save it', async () 
   expect(await screen.findByText('cat.jpg')).toBeTruthy();
   expect(screen.getByText('Save to phone')).toBeTruthy();
   expect(fetchMock).toHaveBeenCalledWith(`${BASE}/api/convert`, expect.objectContaining({ method: 'POST' }));
+  expect(File.downloadFileAsync).toHaveBeenCalledWith(`${BASE}/api/convert/result/c1`, expect.anything(), { idempotent: true });
 });
 
 test('the YouTube screen downloads a finished job and offers to share it', async () => {

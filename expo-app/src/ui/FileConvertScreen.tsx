@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { PickedFile } from '../api/types';
 import { pickedFileFromAsset } from '../files/pickedFile';
-import { writeBytesToCache } from '../files/saveResult';
+import { downloadToCache } from '../files/saveResult';
 import { useServer } from '../settings/ServerContext';
 import { OptionPicker } from './OptionPicker';
 import { PrimaryButton } from './PrimaryButton';
@@ -46,7 +46,7 @@ export function FileConvertScreen({ kind }: { kind: 'image' | 'video' }) {
     setResult(null);
     try {
       const converted = await client.convertFile(file, format);
-      setResult({ uri: await writeBytesToCache(converted.bytes, converted.filename), filename: converted.filename });
+      setResult({ uri: await downloadToCache(converted.resultUrl, converted.filename), filename: converted.filename });
     } catch (caught) {
       setError((caught as Error).message);
     } finally {

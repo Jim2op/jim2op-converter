@@ -24,14 +24,6 @@ export async function downloadToCache(url: string, filename: string): Promise<st
   return downloaded.uri;
 }
 
-/** Write converted bytes from /api/convert into the cache and return the local URI. */
-export async function writeBytesToCache(bytes: Uint8Array, filename: string): Promise<string> {
-  const file = cacheFile(filename);
-  file.create();
-  await file.write(bytes);
-  return file.uri;
-}
-
 /** Save an image or video to the photo library. Returns false when the user denies access. */
 export async function saveToPhotos(uri: string): Promise<boolean> {
   const permission = await MediaLibrary.requestPermissionsAsync(true);

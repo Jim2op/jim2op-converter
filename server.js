@@ -29,6 +29,7 @@ const MIME_TYPES = {
 
 const youtubeJobs = new Map();
 const spotifyJobs = new Map();
+const convertResults = new Map();
 
 await Promise.all([
   fs.mkdir(UPLOAD_DIRECTORY, { recursive: true }),
@@ -346,9 +347,31 @@ export function createApp(options = {}) {
         error.status = 400;
         throw error;
       }
+      if (body.deliver === 'link') {
+        // The phone app downloads straight to disk instead of holding a large result in JavaScript memory.
+        const resultId = randomUUID();
+        const outputPath = path.join(WORK_DIRECTORY, `convert-${resultId}`);
+        await fs.writeFile(outputPath, result.buffer);
+        convertResults.set(resultId, { outputPath, filename: result.filename, mimetype: result.mimetype });
+        response.status(201).json({ result_url: `/api/convert/result/${resultId}`, filename: result.filename });
+        return;
+      }
       response.type(result.mimetype).attachment(result.filename).send(result.buffer);
     } catch (error) {
       await removeFiles(files.map((entry) => entry.path));
+      next(error);
+    }
+  });
+
+  app.get('/api/convert/result/:resultId', async (request, response, next) => {
+    const stored = convertResults.get(request.params.resultId);
+    if (!stored) return response.status(404).json({ error: 'Converted file not found.' });
+    try {
+      // One download per result, like the YouTube and Spotify job results.
+      convertResults.delete(request.params.resultId);
+      response.type(stored.mimetype).attachment(stored.filename).send(await fs.readFile(stored.outputPath));
+      await removeFiles([stored.outputPath]);
+    } catch (error) {
       next(error);
     }
   });

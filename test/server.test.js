@@ -82,6 +82,30 @@ test('the Node API converts an uploaded PNG into a JPEG download', async () => {
   assert.ok(response.body.length > 0);
 });
 
+test('the Node API can hand a conversion back as a one-time download link', async () => {
+  const fixture = await sharp({
+    create: { width: 4, height: 4, channels: 3, background: { r: 10, g: 20, b: 30 } },
+  }).png().toBuffer();
+  const response = await request(app)
+    .post('/api/convert')
+    .field('format', 'JPEG')
+    .field('deliver', 'link')
+    .attach('image', fixture, { filename: 'photo.png', contentType: 'image/png' });
+
+  assert.equal(response.status, 201);
+  assert.equal(response.body.filename, 'photo.jpg');
+  assert.match(response.body.result_url, /^\/api\/convert\/result\/[0-9a-f-]+$/);
+
+  const result = await request(app).get(response.body.result_url);
+  assert.equal(result.status, 200);
+  assert.match(result.headers['content-type'], /image\/jpeg/);
+  assert.match(result.headers['content-disposition'], /photo\.jpg/);
+  assert.ok(result.body.length > 0);
+
+  const again = await request(app).get(response.body.result_url);
+  assert.equal(again.status, 404);
+});
+
 test('the Node bridge exposes yt-dlp worker progress and returns its completed result', async () => {
   const start = await request(youtubeApp)
     .post('/api/youtube/download')

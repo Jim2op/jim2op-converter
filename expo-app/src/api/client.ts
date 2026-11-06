@@ -58,14 +58,15 @@ export function createClient(baseUrl: string, fetchImpl: typeof fetch = fetch) {
   return {
     getConfig: (options: { timeoutMs?: number } = {}) => json<ServerConfig>('/api/config', undefined, options.timeoutMs),
 
-    async convertFile(file: PickedFile, format: string): Promise<{ bytes: Uint8Array; filename: string }> {
+    /** Upload a file for conversion; the server keeps the result and returns a one-time link to download it to disk. */
+    async convertFile(file: PickedFile, format: string): Promise<{ resultUrl: string; filename: string }> {
       const body = new FormData();
       // React Native's FormData uploads a local file from this { uri, name, type } shape.
       body.append('image', { uri: file.uri, name: file.name, type: file.mimeType } as unknown as Blob);
       body.append('format', format);
-      const response = await request('/api/convert', { method: 'POST', body });
-      const bytes = new Uint8Array(await response.arrayBuffer());
-      return { bytes, filename: filenameFromDisposition(response.headers.get('Content-Disposition'), file.name) };
+      body.append('deliver', 'link');
+      const converted = await json<{ result_url: string; filename: string }>('/api/convert', { method: 'POST', body });
+      return { resultUrl: `${baseUrl}${converted.result_url}`, filename: converted.filename };
     },
 
     async startJob(kind: JobKind, url: string, format: string, quality: string): Promise<string> {

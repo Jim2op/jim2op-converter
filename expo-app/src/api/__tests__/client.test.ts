@@ -79,15 +79,14 @@ test('startJob uses youtube_url for YouTube', async () => {
   expect(fetchImpl.mock.calls[0][1].body).toMatch(/^youtube_url=/);
 });
 
-test('convertFile uploads image and format and returns the bytes and filename', async () => {
+test('convertFile uploads the file and asks for a download link instead of the bytes', async () => {
   const fetchImpl = jest.fn().mockResolvedValue(
-    fakeResponse({ headers: { 'Content-Disposition': 'attachment; filename="photo.jpg"' }, bytes: [1, 2, 3] }),
+    fakeResponse({ status: 201, json: { result_url: '/api/convert/result/r1', filename: 'photo.jpg' } }),
   );
   const result = await createClient(BASE, fetchImpl).convertFile({ uri: 'file:///p.png', name: 'p.png', mimeType: 'image/png' }, 'JPEG');
   expect(fetchImpl.mock.calls[0][0]).toBe('http://h:5000/api/convert');
-  expect(formFieldNames(fetchImpl.mock.calls[0][1].body).sort()).toEqual(['format', 'image']);
-  expect(Array.from(result.bytes)).toEqual([1, 2, 3]);
-  expect(result.filename).toBe('photo.jpg');
+  expect(formFieldNames(fetchImpl.mock.calls[0][1].body).sort()).toEqual(['deliver', 'format', 'image']);
+  expect(result).toEqual({ resultUrl: 'http://h:5000/api/convert/result/r1', filename: 'photo.jpg' });
 });
 
 test('getProgress and resultUrl use the job kind', async () => {
