@@ -90,6 +90,10 @@ test('the Node bridge exposes yt-dlp worker progress and returns its completed r
   assert.equal(start.status, 202);
   assert.ok(start.body.job_id);
 
+  const early = await request(youtubeApp).get(`/api/youtube/progress/${start.body.job_id}`);
+  assert.notEqual(early.body.state, 'completed');
+  assert.equal(early.body.filename, null);
+
   const progress = await waitForCompletion(youtubeApp, '/api/youtube/progress', start.body.job_id);
   assert.equal(progress.status, 200);
   assert.equal(progress.body.state, 'completed');
@@ -111,6 +115,7 @@ test('the Node bridge returns YouTube playlist downloads as ZIP archives', async
   const progress = await waitForCompletion(playlistYoutubeApp, '/api/youtube/progress', start.body.job_id);
   assert.equal(progress.status, 200);
   assert.equal(progress.body.state, 'completed');
+  assert.equal(progress.body.filename, 'test-playlist.zip');
 
   const result = await request(playlistYoutubeApp).get(`/api/youtube/result/${start.body.job_id}`);
   assert.equal(result.status, 200);
@@ -131,6 +136,7 @@ test('the Node bridge returns a metadata-ready Spotify track download', async ()
   assert.equal(progress.body.state, 'completed');
   assert.equal(progress.body.completedItems, 1);
   assert.equal(progress.body.totalItems, 1);
+  assert.equal(progress.body.filename, 'test-spotify.mp3');
 
   const result = await request(spotifyApp).get(`/api/spotify/result/${start.body.job_id}`);
   assert.equal(result.status, 200);

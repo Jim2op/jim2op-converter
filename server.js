@@ -127,6 +127,7 @@ function publicJob(job) {
     totalItems: Number.isFinite(job.totalItems) ? job.totalItems : null,
     currentItem: job.currentItem || null,
     message: job.message || null,
+    filename: job.state === 'completed' ? job.filename || null : null,
   };
 }
 
