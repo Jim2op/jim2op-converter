@@ -7,9 +7,9 @@ import argparse
 import importlib.util
 import json
 import re
-import shutil
 import subprocess
 import sys
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -133,6 +133,16 @@ def audio_outputs(output_directory: Path) -> list[Path]:
         path for path in output_directory.rglob("*")
         if path.is_file() and path.suffix.lower() in AUDIO_EXTENSIONS
     )
+
+
+def build_archive(output_directory: Path) -> Path:
+    """Zip the finished tracks and playlist file, skipping the archive itself so it cannot grow without bound."""
+    archive_path = output_directory / "spotify-download.zip"
+    sources = sorted(path for path in output_directory.rglob("*") if path.is_file() and path != archive_path)
+    with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_STORED) as archive:
+        for source in sources:
+            archive.write(source, source.relative_to(output_directory).as_posix())
+    return archive_path
 
 
 def progress_from_output(
@@ -274,7 +284,7 @@ def main() -> int:
             })
         else:
             # Playlist and album requests download multiple tracks, so deliver one portable archive plus its M3U file.
-            archive_path = Path(shutil.make_archive(str(output_directory / "spotify-download"), "zip", output_directory))
+            archive_path = build_archive(output_directory)
             emit({
                 "event": "complete",
                 "path": str(archive_path),

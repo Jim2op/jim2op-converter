@@ -11,6 +11,22 @@ assert SPEC and SPEC.loader
 SPEC.loader.exec_module(WORKER)
 
 
+class SpotifyWorkerArchiveTests(unittest.TestCase):
+    def test_playlist_archive_never_contains_itself(self):
+        import tempfile, zipfile
+        with tempfile.TemporaryDirectory() as directory:
+            output_directory = Path(directory)
+            (output_directory / "Artist - Song.mp3").write_bytes(b"audio")
+            (output_directory / "playlist.m3u8").write_text("Artist - Song.mp3\n", encoding="utf-8")
+
+            archive_path = WORKER.build_archive(output_directory)
+
+            self.assertEqual(archive_path.parent, output_directory)
+            with zipfile.ZipFile(archive_path) as archive:
+                self.assertEqual(sorted(archive.namelist()), ["Artist - Song.mp3", "playlist.m3u8"])
+            self.assertLess(archive_path.stat().st_size, 1024)
+
+
 class SpotifyWorkerProgressTests(unittest.TestCase):
     def test_reports_the_project_install_command_when_spotdl_is_missing(self):
         with patch("importlib.util.find_spec", return_value=None):
