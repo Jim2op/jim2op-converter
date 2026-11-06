@@ -25,12 +25,18 @@ export function filenameFromDisposition(header: string | null, fallback: string)
 }
 
 export function createClient(baseUrl: string, fetchImpl: typeof fetch = fetch) {
-  async function request(path: string, init?: RequestInit): Promise<Response> {
+  async function request(path: string, init?: RequestInit, timeoutMs?: number): Promise<Response> {
     let response: Response;
+    // React Native's Android client has no connect timeout, so a wrong address would otherwise hang for minutes.
+    const controller = timeoutMs ? new AbortController() : null;
+    const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
     try {
-      response = await fetchImpl(`${baseUrl}${path}`, init);
+      response = await fetchImpl(`${baseUrl}${path}`, controller ? { ...init, signal: controller.signal } : init);
     } catch {
-      throw new Error(`Can't reach the server at ${baseUrl}`);
+      const timedOut = controller?.signal.aborted;
+      throw new Error(`Can't reach the server at ${baseUrl}${timedOut ? ` (no answer after ${Math.round(timeoutMs! / 1000)} s)` : ''}`);
+    } finally {
+      if (timer) clearTimeout(timer);
     }
     if (!response.ok) {
       const body = await response.text().catch(() => '');
@@ -46,10 +52,11 @@ export function createClient(baseUrl: string, fetchImpl: typeof fetch = fetch) {
     return response;
   }
 
-  const json = async <T>(path: string, init?: RequestInit) => (await request(path, init)).json() as Promise<T>;
+  const json = async <T>(path: string, init?: RequestInit, timeoutMs?: number) =>
+    (await request(path, init, timeoutMs)).json() as Promise<T>;
 
   return {
-    getConfig: () => json<ServerConfig>('/api/config'),
+    getConfig: (options: { timeoutMs?: number } = {}) => json<ServerConfig>('/api/config', undefined, options.timeoutMs),
 
     async convertFile(file: PickedFile, format: string): Promise<{ bytes: Uint8Array; filename: string }> {
       const body = new FormData();

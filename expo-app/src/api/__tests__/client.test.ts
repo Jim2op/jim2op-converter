@@ -27,7 +27,22 @@ test('getConfig reads /api/config', async () => {
   const config = { image_formats: ['PNG'], video_outputs: ['GIF'] };
   const fetchImpl = jest.fn().mockResolvedValue(fakeResponse({ json: config }));
   await expect(createClient(BASE, fetchImpl).getConfig()).resolves.toEqual(config);
-  expect(fetchImpl).toHaveBeenCalledWith('http://h:5000/api/config', undefined);
+  expect(fetchImpl.mock.calls[0][0]).toBe('http://h:5000/api/config');
+});
+
+test('getConfig gives up after the timeout instead of waiting on a wrong address', async () => {
+  jest.useFakeTimers();
+  try {
+    const fetchImpl = jest.fn((_url: string, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(new Error('Aborted')));
+    }));
+    const failure = createClient(BASE, fetchImpl as unknown as typeof fetch).getConfig({ timeoutMs: 5000 });
+    const assertion = expect(failure).rejects.toThrow("Can't reach the server at http://h:5000 (no answer after 5 s)");
+    await jest.advanceTimersByTimeAsync(5000);
+    await assertion;
+  } finally {
+    jest.useRealTimers();
+  }
 });
 
 test('a JSON error from the server keeps its message and status', async () => {

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createClient, type Client } from '../api/client';
 import type { ServerConfig } from '../api/types';
 import { loadServerAddress, normalizeServerAddress, saveServerAddress } from './serverAddress';
@@ -16,6 +16,8 @@ type ServerState = {
   refresh(): Promise<void>;
 };
 
+const CHECK_TIMEOUT_MS = 5000;
+
 const ServerContext = createContext<ServerState | null>(null);
 
 export function ServerProvider({ children }: { children: ReactNode }) {
@@ -24,14 +26,20 @@ export function ServerProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>('unset');
   const [error, setError] = useState<string | null>(null);
   const client = useMemo(() => (address ? createClient(address) : null), [address]);
+  // Only the newest check may set the status; a slow failure for an old address must not win.
+  const latestCheck = useRef(0);
 
   const check = useCallback(async (target: string) => {
+    const id = ++latestCheck.current;
     setStatus('checking');
     setError(null);
     try {
-      setConfig(await createClient(target).getConfig());
+      const next = await createClient(target).getConfig({ timeoutMs: CHECK_TIMEOUT_MS });
+      if (id !== latestCheck.current) return;
+      setConfig(next);
       setStatus('online');
     } catch (caught) {
+      if (id !== latestCheck.current) return;
       setConfig(null);
       setError((caught as Error).message);
       setStatus('offline');
@@ -40,7 +48,8 @@ export function ServerProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     loadServerAddress().then((saved) => {
-      if (!saved) return;
+      // Skip the saved address if the user already entered one.
+      if (!saved || latestCheck.current > 0) return;
       setAddressState(saved);
       void check(saved);
     });

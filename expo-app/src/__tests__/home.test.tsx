@@ -23,7 +23,7 @@ test('testing a typed address connects and remembers it', async () => {
   await fireEvent.press(screen.getByText('Test connection'));
 
   expect(await screen.findByText('Connected. YouTube cookies are configured.')).toBeTruthy();
-  expect(globalThis.fetch).toHaveBeenCalledWith('http://127.0.0.1:5000/api/config', undefined);
+  expect((globalThis.fetch as jest.Mock).mock.calls[0][0]).toBe('http://127.0.0.1:5000/api/config');
   expect(await AsyncStorage.getItem('converter.serverAddress')).toBe('http://127.0.0.1:5000');
 });
 
